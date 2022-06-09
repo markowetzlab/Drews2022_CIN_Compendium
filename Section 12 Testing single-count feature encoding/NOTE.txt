@@ -1,0 +1,7 @@
+To validate that our multi-feature encoding approach is more appropriate for encoding signatures of CIN, we compared our approach to a single-count feature encoding inspired by an alternative method for obtaining copy number signatures. 
+Link to the preprint of the alternative method: https://www.biorxiv.org/content/10.1101/2021.04.30.441940v1.full 
+
+#### Summary
+1) Classification of each copy number segment into one of 28 categories based on copy number, segment length and genotype.
+2) Run SigProfilerExtractor
+3) Plot definitions of signatures deconstructed

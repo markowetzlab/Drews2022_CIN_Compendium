@@ -1,0 +1,163 @@
+---
+title: "Comparison to Steele et al. 2021"
+output: 
+  pdf_document:
+    number_sections: true
+---
+
+```{r setup, message=FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+
+library(data.table)
+library(dplyr)
+library(ggpubr)
+library(ggrepel)
+library(sjPlot)
+library(tidyverse)
+library(rstatix)
+library(reshape2)
+library(ggplot2)
+library(ggthemes)
+library(lemon)
+library(RColorBrewer)
+
+# PATHWAYS
+PATH <- dirname(rstudioapi::getSourceEditorContext()$path)
+SigProf_DIR <- paste0(PATH,"/SigProfiler")
+
+# PLOTS THEME
+theme_set(theme_tufte(base_size = 6, base_family = "ArialMT"))
+theme_update(text = element_text(size = 6),
+             axis.text = element_text(size = 6),
+             axis.line = element_line(size = 0.5), 
+             axis.ticks = element_line(size = 0.5),
+             axis.ticks.length = unit(.1, "cm"))
+```
+
+# LOAD DATA
+```{r data}
+#Simulated segment tables
+lSegtables <- readRDS(paste0(PATH,"/input/Out_2_Step_3_Segmentation_tables_20each_N240_RubenParam2.rds"))
+lSegtables <- as.data.frame(do.call(rbind, lSegtables))  
+row.names(lSegtables) <- NULL
+```
+
+# EXTRACT COMPONENTS FROM CN PROFILES
+```{r Chris}
+# Copy number component --> del=0-1; neut=2; gain=3-4; amp=5-8; amp+=9+
+cn_features <- c("0","1","2","3-4","5-8","+9")
+lSegtables$segVal <- round(lSegtables$segVal,0)
+lSegtables$CN[lSegtables$segVal==0]<-"0"
+lSegtables$CN[lSegtables$segVal==1]<-"1"
+lSegtables$CN[lSegtables$segVal==2]<-"2"
+lSegtables$CN[lSegtables$segVal==3 | lSegtables$segVal==4]<-"3-4"
+lSegtables$CN[lSegtables$segVal>4 & lSegtables$segVal<9]<-"5-8"
+lSegtables$CN[lSegtables$segVal>=9]<-"+9"
+
+# Super class ('het', 'LOH', 'homdel') --> we can't distinguish LOH in CN=2 --> homdel if CN=0 & non-homdel if CN>0
+sc_features <- c("homdel","non-homdel")
+lSegtables$SClass[lSegtables$CN=="0"] <- "homdel"
+lSegtables$SClass[lSegtables$CN!="0"] <- "non-homdel"
+
+# Length of segments
+# for "HomDel" --> ['0-100kb', '100kb-1Mb', '>1Mb']
+# for "non-HomDel" --> ['>40Mb', '10Mb-40Mb', '1Mb-10Mb', '100kb-1Mb', '0-100kb']
+sz_features <- c('>40Mb', '10Mb-40Mb', '1Mb-10Mb', '100kb-1Mb', '0-100kb')
+lSegtables$length <- (lSegtables$end - lSegtables$start)/1000000 #megabases
+lSegtables$size<-NA
+#homdel
+homdel <- lSegtables[lSegtables$SClass=="homdel",]
+homdel$size[homdel$length<=0.1]<- "0-100kb"
+homdel$size[homdel$length>0.1 & homdel$length<=1]<-"100kb-1Mb"
+homdel$size[homdel$length>1]<- ">1Mb"
+#non-homdel
+nonhomdel <- lSegtables[lSegtables$SClass!="homdel",]  
+nonhomdel$size[nonhomdel$length<=0.1]<- "0-100kb"
+nonhomdel$size[nonhomdel$length>0.1 & nonhomdel$length<=1]<-"100kb-1Mb"
+nonhomdel$size[nonhomdel$length>1 & nonhomdel$length<=10]<- "1Mb-10Mb"
+nonhomdel$size[nonhomdel$length>10 & nonhomdel$length<=40]<- "10Mb-40Mb"
+nonhomdel$size[nonhomdel$length>40]<- ">40Mb"
+
+lSegtables<-rbind(homdel, nonhomdel)
+lSegtables<-lSegtables[order(lSegtables$sample,lSegtables$chromosome,lSegtables$start),]
+
+# Features
+lSegtables$Features <- paste(lSegtables$CN,lSegtables$SClass,lSegtables$size, sep=":")
+features <- unique(lSegtables$Features)
+features <- factor(features, levels=c("0:homdel:0-100kb","0:homdel:100kb-1Mb", "0:homdel:>1Mb",
+                                      "1:non-homdel:0-100kb","1:non-homdel:100kb-1Mb","1:non-homdel:1Mb-10Mb","1:non-homdel:10Mb-40Mb", "1:non-homdel:>40Mb",
+                                      "2:non-homdel:0-100kb","2:non-homdel:100kb-1Mb","2:non-homdel:1Mb-10Mb","2:non-homdel:10Mb-40Mb", "2:non-homdel:>40Mb",
+                                      "3-4:non-homdel:0-100kb","3-4:non-homdel:100kb-1Mb","3-4:non-homdel:1Mb-10Mb","3-4:non-homdel:10Mb-40Mb", "3-4:non-homdel:>40Mb",
+                                      "5-8:non-homdel:0-100kb","5-8:non-homdel:100kb-1Mb","5-8:non-homdel:1Mb-10Mb","5-8:non-homdel:10Mb-40Mb", "5-8:non-homdel:>40Mb",
+                                      "+9:non-homdel:0-100kb","+9:non-homdel:100kb-1Mb","+9:non-homdel:1Mb-10Mb","+9:non-homdel:10Mb-40Mb", "+9:non-homdel:>40Mb"))
+
+lSegtables$Features <- factor(lSegtables$Features, levels=c("0:homdel:0-100kb","0:homdel:100kb-1Mb", "0:homdel:>1Mb",
+                                      "1:non-homdel:0-100kb","1:non-homdel:100kb-1Mb","1:non-homdel:1Mb-10Mb","1:non-homdel:10Mb-40Mb", "1:non-homdel:>40Mb",
+                                      "2:non-homdel:0-100kb","2:non-homdel:100kb-1Mb","2:non-homdel:1Mb-10Mb","2:non-homdel:10Mb-40Mb", "2:non-homdel:>40Mb",
+                                      "3-4:non-homdel:0-100kb","3-4:non-homdel:100kb-1Mb","3-4:non-homdel:1Mb-10Mb","3-4:non-homdel:10Mb-40Mb", "3-4:non-homdel:>40Mb",
+                                      "5-8:non-homdel:0-100kb","5-8:non-homdel:100kb-1Mb","5-8:non-homdel:1Mb-10Mb","5-8:non-homdel:10Mb-40Mb", "5-8:non-homdel:>40Mb",
+                                      "+9:non-homdel:0-100kb","+9:non-homdel:100kb-1Mb","+9:non-homdel:1Mb-10Mb","+9:non-homdel:10Mb-40Mb", "+9:non-homdel:>40Mb"))
+
+ECNF_Chris <- lSegtables %>%
+    group_by(sample, Features) %>%
+    summarise(n=n()) %>%
+    complete(sample, Features, fill = list(n = 0))
+ECNF_Chris <- as.data.frame(acast(ECNF_Chris, sample~Features, value.var = "n"))
+ECNF_Chris <- t(ECNF_Chris[,levels(features)])
+#add row.names in the first column
+ECNF_Chris <- cbind(levels(features),ECNF_Chris) 
+colnames(ECNF_Chris)[1]<-"features"
+#save
+write.table(ECNF_Chris, file=paste0(SigProf_DIR,"/3_ECNF_Chris_Step_3_5signatures_20each_N240.txt"), sep="\t", col.names = TRUE, quote = FALSE)
+```
+
+# DECOMPOSE SIGNATURES USING SigProfilerExtractor
+```{r sigprofiler}
+## Done in shell using the python version of SigProfilerExtractor
+## More info in https://github.com/AlexandrovLab/SigProfilerExtractor/tree/master/SigProfilerExtractor
+
+# python3
+# from SigProfilerExtractor import sigpro as sig
+# data="path_to_ECNF_Chris"
+# out_put="path_to_output"
+# sig.sigProfilerExtractor("matrix", out_put, data, reference_genome="GRCh37", minimum_signatures=1, maximum_signatures=28, nmf_replicates=100, cpu=-1)
+
+## Go to the output directory and check the "Selection_plot" for knowing the optimal number of signatures
+## Then go to the "All_solutions" directory and use the optimal solution results for downstream analyses
+## Supplementary Fig. 49 --> optimal solution plot obtained with SigProfilerExtractor (selection plot)
+```
+
+# PLOT SIGNATURE DEFINITIONS
+
+The optimal solution includes 4 signatures
+```{r S4_solution}
+sigdefs <- read.table(paste0(SigProf_DIR,"/CH28_S4_Signatures.txt"), sep="\t", header = T, check.names=FALSE)
+row.names(sigdefs) <- sigdefs[,1]
+sigdefs <- sigdefs[,-1]
+
+#normalize signature matrix
+sigdefs <- apply(sigdefs,2,function(x){x/sum(x)}) #normalization
+
+#prepare to plot
+pdat <- reshape2::melt(sigdefs)
+colnames(pdat) <- c("component", "sig", "weight")
+pdat$feature <- c(rep(c(rep("0",3), rep("1",5), rep("2",5), rep("3-4",5), 
+                        rep("5-8",5), rep("9+",5)), 4))
+
+pdat$sig<-factor(pdat$sig,levels=c("SBS28A", "SBS28B", "SBS28C", "SBS28D"),labels = c("SigA","SigB","SigC","SigD"))
+
+p = ggplot(pdat, aes(x = factor(component), y = weight, fill = feature)) +
+  geom_bar(stat = "identity") + facet_wrap(. ~ sig, ncol = 1,scales="free_y") + theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+    scale_fill_manual("feature", values=c("0" = "blue2", "1" = "gray70", 
+                                        "2" = "green3", "3-4" = "purple2", 
+                                        "5-8" = "orange", "9+"="red"))
+print(p)
+
+# ## Save output
+# cairo_pdf(file.path(PATH, "/output/SuppFig_44_CH28_S4_Signatures.pdf"), height = 148/25.4, width = 210/25.4)
+# print(p); dev.off()
+ggsave(file.path(PATH, "/output/SuppFig_44_CH28_S4_Signatures.svg"), p, height = 148/25.4, width = 210/25.4)
+```

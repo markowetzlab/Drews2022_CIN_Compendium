@@ -1,0 +1,24 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' class='svglite' width='283.46pt' height='198.43pt' viewBox='0 0 283.46 198.43'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+  ]]></style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: none;'/>
+<defs>
+  <clipPath id='cpMC4wMHwyODMuNDZ8MC4wMHwxOTguNDM='>
+    <rect x='0.00' y='0.00' width='283.46' height='198.43' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHwyODMuNDZ8MC4wMHwxOTguNDM=)'>
+<text x='141.73' y='95.22' text-anchor='middle' style='font-size: 11.04px; font-family: Arial;' textLength='220.06px' lengthAdjust='spacingAndGlyphs'>Cox HR model for germline BRCA1 samples </text>
+<text x='141.73' y='111.12' text-anchor='middle' style='font-size: 11.04px; font-family: Arial;' textLength='225.03px' lengthAdjust='spacingAndGlyphs'>Empty because Cox model failed to converge.</text>
+</g>
+</svg>

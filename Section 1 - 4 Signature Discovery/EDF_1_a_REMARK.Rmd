@@ -1,0 +1,89 @@
+---
+title: 'EDF 1: REMARK diagram for sample analysis'
+author: "Drews RM et al."
+date: "09 June 2020"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+params:
+  args: args
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+suppressPackageStartupMessages({
+  library(this.path)
+  library(data.table)
+})
+
+BASE=dirname(this.path())
+META=file.path(BASE, "input/Metadata_TCGA_ASCAT_penalty70.txt")
+meta=fread(META)
+
+```
+
+# EDF 1: REMARK diagram for sample analysis
+
+This markdown prints the necessary numbers to reconstruct extended data figure 1.
+
+```{r EDF1}
+
+# Number of SNP6 arrays available
+nrow(meta)
+
+# Number of unique patients
+length(unique(meta$patient))
+
+# Samples without ASCAT solution
+sum(! meta$solution)
+
+# Remove probable ASCAT failures and potential germline mismatches
+sum( meta$purity == 1 , na.rm = TRUE )
+
+# Remove samples with low purity
+sum(meta$purity <= 0.4, na.rm = TRUE)
+
+
+# Remove noisy samples
+metaFilt = meta[ meta$solution & meta$purity < 1 & meta$purity > 0.4, ]
+
+# Identify multi-sample patients
+tabPat = table(metaFilt$patient)
+multiSampPats = names(tabPat)[ tabPat > 1 ]
+# Number of patients with multiple samples
+length(multiSampPats)
+# Number of samples from multi-sample patients
+numMultiSamps = sum(tabPat[ tabPat > 1 ])
+numMultiSamps
+
+# How many arrays without multi-samples patients
+nrow(meta[meta$rep])
+# How many lost
+nrow(meta) - nrow(meta[meta$rep])
+
+
+# Remove multisample cases
+metaFilt2 = metaFilt[metaFilt$rep,]
+
+
+# Filtered because of array quality (MAPD etc.)
+sum( ! (metaFilt2$notOverSegm & metaFilt2$pass) )
+
+metaFilt3 = metaFilt2[metaFilt2$notOverSegm & metaFilt2$pass, ]
+
+# Total size of cohort if all filters are applied
+nrow(meta[ ! is.na(meta$CNAs), ])
+
+```
+
+\newpage
+
+## Session info
+
+```{r session,echo=FALSE}
+
+sessionInfo()
+
+```

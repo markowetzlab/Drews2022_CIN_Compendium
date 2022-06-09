@@ -1,0 +1,6 @@
+bpchrarm: 4
+bpMB: 21
+changepoint: 19
+copynumber: 20
+osCN: 13
+segsize: 20

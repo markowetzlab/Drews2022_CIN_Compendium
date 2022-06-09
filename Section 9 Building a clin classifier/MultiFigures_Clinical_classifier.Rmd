@@ -1,0 +1,782 @@
+---
+title: "EDF 10 Clinical classifier"
+author: "Drews RM et al."
+date: "22/04/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+rm(list=ls(all=TRUE))
+
+suppressPackageStartupMessages({
+  # Standard packages used throughout repo
+  library(here)
+  library(data.table)
+  library(reshape2)
+  library(ggplot2)
+  library(ggthemes)
+  library(lemon)
+  library(RColorBrewer)
+  # For survival analysis
+  library(survival)
+  library(survminer)
+  library(cmprsk)
+  library(compositions)
+  # SVM
+  library(caret)
+
+})
+
+theme_set(theme_tufte(base_size = 6, base_family = "ArialMT"))
+theme_update(text = element_text(size = 6),
+             axis.text = element_text(size = 6),
+             axis.line = element_line(size = 0.5),
+             axis.ticks = element_line(size = 0.5),
+             axis.ticks.length = unit(.1, "cm"))
+
+
+## Paths
+BASE=dirname(rstudioapi::getSourceEditorContext()$path)
+OUTFIGURES=file.path(BASE, "output")
+OUTTABLE=file.path(BASE, "output")
+dir.create(OUTFIGURES, showWarnings = FALSE, recursive = TRUE)
+dir.create(OUTTABLE, showWarnings = FALSE, recursive = TRUE)
+# Of output files
+WIDTH=100/25.4
+HEIGHT=70/25.4
+
+
+## Data - TCGA
+ACTIVITIES=file.path(BASE, "input/Signature_Compendium_v5_Cosine-0.74_Activities_THRESH95_NAMESAPRIL21.rds")
+META=file.path(BASE, "input/Metadata_TCGA_ASCAT_penalty70.rds")
+LINK=file.path(BASE, "input/TCGA_PCAWG_links_plusCancer.rds")
+# From Degasperi et al. 2020
+HRDETECT=file.path(BASE, "input/Degasperi2020_HRDetect_PCAWG.txt")
+# From Knijnenburg et al. 2018, downloaded and preprocessed by Jordan Griffin (Gerke Lab, github repo: TCGAhrd)
+HRDSCORES=file.path(BASE, "input/Knijnenburg2018_HRD_Scores_TCGA_GerkeLabGithub.txt")
+# From Marquard et al. 2015 (Has more OV data than Knijnenburg et al., 2018)
+HRDSCORES2=file.path(BASE, "input/Marquard2015_HRD_Scores_TCGA.txt")
+## From previous survival analysis (Compile_survival_data_onlyclin.R)
+SURVIVALOV=file.path(BASE, "input/Survival_and_BRCA_Status_TCGA-OV.rds")
+
+## Classifier - output
+CLASSFILE=file.path(OUTTABLE, "CX3CX2_Clinical_classifier.rds")
+
+
+
+## Data - PCAWG
+PCAWG=file.path(BASE, "input/PCAWG_signature_activities_THRESH095_NAMESAPRIL21.rds")
+METAPCAWG=file.path(BASE, "input/PCAWG_1900_samples_CINSig_activities_metadata_plus_HRDetect.rds")
+SURVPCAWG=file.path(BASE, "input/pcawg_donor_clinical_August2016_v9.fixed.tsv")
+TSPCAWG=file.path(BASE, "input/donor.tsv")
+
+
+
+## Data - ICGC (560 Breast cancers)
+ICGC560=file.path(BASE, "input/ICGC_560BCs_signature_activities_THRESH095_NAMESAPRIL21.rds")
+METAICGC560=file.path(BASE, "input/Meta_560BreastCancers.tsv")
+HRDETECTICGC560=file.path(BASE, "input/Meta_560BreastCancers_HRDetect.txt")
+
+
+
+## Other essential variables
+AGEBRACKETS=c(0, 53, 62, 76, 100)
+
+## Load essential files
+links = readRDS(LINK)
+
+```
+
+```{r functions, echo=FALSE}
+
+## Little function for applying the classifier to a data frame with columns "CX3", "CX2" and "Name"
+applyClinClass = function(dtSurvOV, lModel) {
+  
+  ## Scale the activities
+  mTCGAOV = as.matrix(dtSurvOV[ , c("CX3", "CX2")])
+  rownames(mTCGAOV) = dtSurvOV$Name
+  smTCGAOV = sweep(sweep(mTCGAOV, 2, lModel$mean, FUN = '-'), 2, lModel$scale, FUN = "/")
+  
+  dtSurvOV$sCX3 = smTCGAOV[,"CX3"]
+  dtSurvOV$sCX2 = smTCGAOV[,"CX2"]
+  
+  ## Apply classifier
+  if(identical(dtSurvOV$Name, rownames(smTCGAOV))) {
+    dtSurvOV$Classifier = ifelse(dtSurvOV$sCX3 >= dtSurvOV$sCX2, "Predicted sensitive", "Predicted resistant")  
+  } else {
+    stop("Something went wrong.")
+  }
+  
+  return(dtSurvOV)
+  
+}
+
+## Bread and butter function of this markdown
+plotKMandCoxOS = function(dtSurvOV, COHORTNAME = "TCGA-OV", CLASSIFIERNAME = "CX3/CX2 classifier", COXMODEL = "Full") {
+  
+  ## Argument: CLASSIFIER = "Classifier"
+  
+  ### Cannot get the automatic handling of variable CLASSIFIER from within the function. It is not recognised within the function despite being defined.
+  # kmOV = survfit(Surv(OS.time, OS) ~ Classifier, data = dtSurvOV)
+  # CLASSIFIER = noquote(COLNAME)
+  # print(CLASSIFIER)
+  # print(exists(CLASSIFIER))
+  # kmOV = survfit(Surv(OS.time, OS) ~ get(CLASSIFIER), data = dtSurvOV)
+  kmOV = survfit(reformulate(termlabels = CLASSIFIER, response = 'Surv(OS.time, OS)'), data = dtSurvOV)
+  # kmOV = survfit(as.formula(paste("Surv(OS.time, OS)~", paste(TEST))), data = dtSurvOV)
+  pKMOV = ggsurvplot(kmOV, data = dtSurvOV, risk.table = TRUE, pval = TRUE, conf.int = FALSE,
+                   xlim = c(0,4000), break.time.by = 365, 
+                   ggtheme = theme_tufte(base_size = 6, base_family = "ArialMT"),
+                   surv.median.line = "hv", risk.table.y.text.col = TRUE, risk.table.y.text = FALSE) + 
+    ggtitle(paste("OS in", COHORTNAME, "patients by", CLASSIFIERNAME))
+  
+  # Cox model
+  # resCoxOV = coxph(Surv(OS.time, OS) ~ Classifier + AgeCategory + TS, data =  dtSurvOV)
+  if(COXMODEL == "Full") {
+    resCoxOV = coxph(reformulate(termlabels = paste(CLASSIFIER, "AgeCategory", "TS", sep = "+"), response = 'Surv(OS.time, OS)'), data = dtSurvOV)
+  } else {
+    resCoxOV = coxph(reformulate(termlabels = paste(CLASSIFIER, "AgeCategory", sep = "+"), response = 'Surv(OS.time, OS)'), data = dtSurvOV)
+  }
+  # Don't attempt to plot if Cox model failed
+  nFailedCox = sum(is.na(resCoxOV$coefficients))
+  if(nFailedCox != length(resCoxOV$coefficients)) {
+    pCoxOV = ggforest(resCoxOV, data = dtSurvOV, main = paste("Cox HR model for", COHORTNAME))  
+  } else {
+    # Just an empty plot to not break the plotting later on.
+    pCoxOV = ggplot() + theme_void() + xlab(NULL) +
+      geom_text(aes(0,0,label = paste("Cox HR model for", COHORTNAME, "\nEmpty because Cox model failed to converge.")))
+  }
+  
+  
+  lOut = list(km = kmOV, kmPlot = pKMOV, cox = resCoxOV, coxPlot = pCoxOV)
+  return(lOut)
+  
+}
+
+
+
+```
+
+
+```{r TCGA-OV overall survival vs signature activities, echo=FALSE}
+
+## Load data
+dtSurvOV = readRDS(SURVIVALOV)
+metaFull = readRDS(META)
+
+## Cox model on HGSOC samples to investigate relationship with CIN signatures
+# Prepare all signature activities and filter for OV
+mTCGA = readRDS(ACTIVITIES)
+# Log ratio transform activities - Cox models don't like compositional data
+mLRTCGA = apply(mTCGA, 2, function(x) clr(x))
+
+# Convert to data table and extract OV-only signature activities
+dfTCGA = data.frame(mLRTCGA)
+dfTCGA$Sample = rownames(dfTCGA)
+dtTCGA = data.table(dfTCGA)
+rm(dfTCGA)
+
+dtTCGA$Cancer = metaFull$cancer_type[ match(dtTCGA$Sample, metaFull$name) ]
+dtOV = dtTCGA[ dtTCGA$Cancer == "OV", ]
+
+
+# For clinical covariates
+dtOV$OS = dtSurvOV$OS[ match(dtOV$Sample, dtSurvOV$Name) ]
+dtOV$OS.time = dtSurvOV$OS.time[ match(dtOV$Sample, dtSurvOV$Name) ]
+dtOV$PFI = dtSurvOV$PFI[ match(dtOV$Sample, dtSurvOV$Name) ]
+dtOV$PFI.time = dtSurvOV$PFI.time[ match(dtOV$Sample, dtSurvOV$Name) ]
+
+dtOV$Age = dtSurvOV$AgeY[ match(dtOV$Sample, dtSurvOV$Name) ]
+dtOV$Race = dtSurvOV$Race[ match(dtOV$Sample, dtSurvOV$Name) ]
+dtOV$TS = dtSurvOV$TS[ match(dtOV$Sample, dtSurvOV$Name) ]
+
+## Cox model
+resCoxOS = coxph(Surv(OS.time, OS) ~ CX1 + CX2 + CX3 + CX4 + CX5 + CX6 + CX7 + CX8 + CX9 + CX10 + CX11  + CX12 + CX13 + CX14 + CX15 + CX16 + CX17 + Age + Race + TS, data =  dtOV)
+pCoxOS = ggforest(resCoxOS, data = dtOV, main = "Cox HR model for TCGA-OV OS")
+
+resCoxPFI = coxph(Surv(PFI.time, PFI) ~ CX1 + CX2 + CX3 + CX4 + CX5 + CX6 + CX7 + CX8 + CX9 + CX10 + CX11  + CX12 + CX13 + CX14 + CX15 + CX16 + CX17 + Age + Race + TS, data =  dtOV)
+pCoxPFI = ggforest(resCoxPFI, data = dtOV, main = "Cox HR model for TCGA-OV PFI")
+
+
+# Save output files
+cairo_pdf(file.path(OUTFIGURES, "SuppFig_32_CoxPh_OS_ALLSIGS_Cont_TCGA-OV.pdf"), 
+          width = 250/25.4, height = 150/25.4)
+print(pCoxOS)
+dev.off()
+
+cairo_pdf(file.path(OUTFIGURES, "SuppFig_XX_CoxPh_OS_ALLSIGS_Cont_TCGA-PFI.pdf"),
+           width = 250/25.4, height = 150/25.4)
+print(pCoxPFI)
+dev.off()
+
+```
+
+
+
+```{r Build clinical classifier, echo=FALSE}
+
+## Build classifier on germline BRCA1 samples
+dtSurvOV = readRDS(SURVIVALOV)
+mBRCA1 = as.matrix(dtSurvOV[ dtSurvOV$Status == "germline BRCA1+LOH", c("CX3", "CX2")])
+
+## The magic
+smBRCA1 = scale(mBRCA1)
+## Save model data
+lModel = list(mean = attributes(smBRCA1)$`scaled:center`, 
+              scale = attributes(smBRCA1)$`scaled:scale`)
+saveRDS(lModel, CLASSFILE)
+
+
+## Apply classifier to all TCGA-OV samples
+dtSurvOV = applyClinClass(dtSurvOV, lModel)
+
+## Plot for figure
+pOut = ggplot(dtSurvOV[ dtSurvOV$Status == "germline BRCA1+LOH", ], aes(x = sCX3, y = sCX2, colour = Classifier)) + 
+  geom_point() + geom_abline(slope = 1, intercept = 0, colour = "grey30", linetype = "dashed") +
+  theme(legend.position = "none", axis.line = element_line(size = 0.5), 
+        axis.ticks = element_line(size = 0.5), axis.ticks.length = unit(.1, "cm"), 
+        plot.margin = unit(c(0, 0, 0, 0), "null"),) + 
+  coord_capped_cart(bottom = "both", left = "both", ylim = c(-2, 2)) +
+  labs(x = "Scaled CX3 activity", y = "Scaled CX2 activity") + theme(aspect.ratio = 1)
+
+cairo_pdf(file.path(OUTFIGURES, "Figure_4_C_CX_Classifier.pdf"), width = 57.1/25.4, height = 57.1/25.4)
+print(pOut); dev.off()
+ggsave(file.path(OUTFIGURES, "Figure_4_C_CX_Classifier.svg"), pOut, 
+       width = 57.1/25.4, height = 57.1/25.4)
+
+```
+
+
+```{r TCGA transfer HRDetect and HRD scores, echo=FALSE}
+
+## Load data
+dtHRDetect = fread(HRDETECT)
+
+
+## Transfer HRDetect status
+dtHRDetect$TCGA = links$TCGA[ match(dtHRDetect$V1, links$PCAWG) ]
+dtSurvOV$HRDetectScore = dtHRDetect$`HRDetect single score`[ match(substr(dtSurvOV$Name,1,12), dtHRDetect$TCGA) ]
+
+dtSurvOV$HRDetectClass = dtSurvOV$HRDetectScore >= 0.7
+dtSurvOV$HRDetectClass = factor(dtSurvOV$HRDetectClass, levels = c(FALSE, TRUE), 
+                                labels = c("Negative", "Positive"))
+
+## Transfer HRD score
+dtHRDScores = fread(HRDSCORES)
+dtSurvOV$HRDScore = dtHRDScores$HRD_Score[ match(substr(dtSurvOV$Name,1,12), substr(dtHRDScores$patient_id,1,12)) ]
+
+# From Marquard et al. 2015
+dtHRDScores2 = fread(HRDSCORES2)
+dtHRDScores2$HRDScore = dtHRDScores2$NtAI + dtHRDScores2$LST + dtHRDScores2$`HRD-LOH`
+dtSurvOV$HRDScore2 = dtHRDScores2$HRDScore[ match(substr(dtSurvOV$Name,1,12), substr(dtHRDScores2$Tumor,1,12)) ]
+
+## Combine both
+dtSurvOV$HRDScore[ is.na(dtSurvOV$HRDScore)  ] = dtSurvOV$HRDScore2[ is.na(dtSurvOV$HRDScore)  ]
+dtSurvOV$HRDScore2 = NULL
+
+## Use Myriad myChoice classifier
+dtSurvOV$MyriadmyChoice = ifelse(dtSurvOV$HRDScore >= 42, "Positive", "Negative")
+dtSurvOV$MyriadmyChoice = factor(dtSurvOV$MyriadmyChoice, levels = c("Negative","Positive"))
+
+```
+
+
+```{r TCGA KM and Cox, echo=FALSE}
+
+#### Age categorisation chosen from age histogram so that it works across all cohorts equally
+dtSurvOV$AgeCategory = cut(dtSurvOV$AgeY, breaks = AGEBRACKETS, labels = 1:(length(AGEBRACKETS)-1))
+
+write.table(dtSurvOV, file.path(OUTTABLE, "Clinical_classifier_TCGA.txt"), quote = FALSE, 
+            sep = "\t", row.names = FALSE, col.names = TRUE)
+
+
+#### germline BRCA1
+dtBRCA1 = dtSurvOV[ dtSurvOV$Status == "germline BRCA1+LOH", ]
+
+## See comment in function?!
+CLASSIFIER = "Classifier"
+lgBRCA1CX = plotKMandCoxOS(dtBRCA1, COHORTNAME = "germline BRCA1 samples", CLASSIFIERNAME = "CX3/CX2 classifier")
+CLASSIFIER = "HRDetectClass"
+lgBRCA1HRDetect = plotKMandCoxOS(dtBRCA1, COHORTNAME = "germline BRCA1 samples", CLASSIFIERNAME = "HRDetect", COXMODEL = "simple")
+CLASSIFIER = "MyriadmyChoice"
+lgBRCA1Myriad = plotKMandCoxOS(dtBRCA1, COHORTNAME = "germline BRCA1 samples", CLASSIFIERNAME = "Myriad myChoice")
+
+
+
+## All TCGA-OV
+CLASSIFIER = "Classifier"
+lTCGAOVCX = plotKMandCoxOS(dtSurvOV, COHORTNAME = "TCGA-OV", CLASSIFIERNAME = "CX3/CX2 classifier")
+CLASSIFIER = "HRDetectClass"
+lTCGAOVHRDetect = plotKMandCoxOS(dtSurvOV, COHORTNAME = "TCGA-OV", CLASSIFIERNAME = "HRDetect", COXMODEL = "simple")
+CLASSIFIER = "MyriadmyChoice"
+lTCGAOVMyriad = plotKMandCoxOS(dtSurvOV, COHORTNAME = "TCGA-OV", CLASSIFIERNAME = "Myriad myChoice")
+
+## For figure 4D - need to know median of survival for whole cohort
+dtSurvOV$NoClass = factor("NoClass")
+CLASSIFIER = "NoClass"
+print(survfit(reformulate(termlabels = CLASSIFIER, response = 'Surv(OS.time, OS)'), data = dtSurvOV))
+
+
+
+## For figure EDF 10
+cairo_pdf(file.path(OUTFIGURES, "EDF_10_A_KM_TCGA-OV_CX_Classifier.pdf"), width = 6, height = 5)
+print(lTCGAOVCX$kmPlot); dev.off()
+cairo_pdf(file.path(OUTFIGURES, "EDF_10_B_Cox_TCGA-OV_CX_Classifier.pdf"), width = 5, height = 3.5)
+print(lTCGAOVCX$coxPlot); dev.off()
+
+```
+
+
+```{r Prepare PCAWG, echo=FALSE}
+
+## Prepare signature activities
+mPCAWG = readRDS(PCAWG)
+
+
+## Add survival
+dtSurv = fread(SURVPCAWG)
+metaPCAWG = readRDS(METAPCAWG)
+dtPcawg = metaPCAWG[, c("projectcode", "cancer_type", "samplename", "icgc_donor_id",
+                   "donor_age_at_diagnosis", "tumour_type", "histology_tier4", "HRDetect")]
+
+## Check that age at diagnosis is identical in both - just sanity check
+dtPcawg$comp = dtSurv$donor_age_at_diagnosis[ match(dtPcawg$icgc_donor_id, dtSurv$icgc_donor_id) ]
+summary(dtPcawg$comp - dtPcawg$donor_age_at_diagnosis)
+dtPcawg$comp = NULL
+
+dtPcawg$vital_status = dtSurv$donor_vital_status[ match(dtPcawg$icgc_donor_id, 
+                                                            dtSurv$icgc_donor_id) ]
+dtPcawg$survival_time = dtSurv$donor_survival_time[ match(dtPcawg$icgc_donor_id, 
+                                                            dtSurv$icgc_donor_id) ]
+dtPcawg$last_follow_up = dtSurv$donor_interval_of_last_followup[ match(dtPcawg$icgc_donor_id, 
+                                                            dtSurv$icgc_donor_id) ]
+
+## Combine survival_time and last_follow_up into one OS.time column
+dtPcawg$OS.time = dtPcawg$survival_time
+dtPcawg$OS.time[ is.na(dtPcawg$OS.time) ] = dtPcawg$last_follow_up[ is.na(dtPcawg$OS.time) ]
+
+
+## Create data table with all information
+dtPcawg$CX3 = mPCAWG[ match(dtPcawg$samplename, rownames(mPCAWG)), "CX3"]
+dtPcawg$CX2 = mPCAWG[ match(dtPcawg$samplename, rownames(mPCAWG)), "CX2"]
+
+## Convert survival
+dtPcawg$OS = ifelse(dtPcawg$vital_status == "alive", 0, 1)
+dtPcawg$OS[ dtPcawg$vital_status == "" ] = NA
+
+## Add staging
+## PCAWG
+dtTS = fread(TSPCAWG)
+dtPcawg$TS = dtTS$donor_tumour_stage_at_diagnosis[ match(dtPcawg$icgc_donor_id, dtTS$icgc_donor_id) ]
+
+## TCGA
+dtPcawg$TCGA = links$TCGA[ match(dtPcawg$icgc_donor_id, links$ICGC) ]
+
+## Stratify by age
+## Look at histogram of age and you see three dips, neatly dividing the cohort into four age groups.
+dtPcawg$AgeCategory = cut(dtPcawg$donor_age_at_diagnosis, breaks = AGEBRACKETS, labels = 1:(length(AGEBRACKETS)-1))
+
+
+
+
+## HRDetect
+dtPcawg$HRDetectClass = ifelse(dtPcawg$HRDetect >= 0.7, "Positive", "Negative")
+dtPcawg$HRDetectClass = factor(dtPcawg$HRDetectClass, levels = c("Negative","Positive"))
+
+## CX classifier
+dtPcawg = applyClinClass(dtPcawg, lModel)
+
+## No HRD scores available for PCAWG
+
+```
+
+
+
+```{r PCAWG-AU KM and Cox, echo=FALSE}
+
+## Use only PCAWG-AU as PCAWG-US is the TCGA-OV cohort
+dtOV = dtPcawg[ dtPcawg$projectcode == "OV-AU", ]
+dtOV$TS[ dtOV$TS == "" ] = NA
+
+write.table(dtOV, file.path(OUTTABLE, "Clinical_classifier_PCAWG_OV-AU.txt"), quote = FALSE, 
+            sep = "\t", row.names = FALSE, col.names = TRUE)
+
+CLASSIFIER = "Classifier"
+lPCAWGAUCX = plotKMandCoxOS(dtOV, COHORTNAME = "PCAWG-AU", CLASSIFIERNAME = "CX3/CX2 classifier")
+CLASSIFIER = "HRDetectClass"
+lPCAWGAUHRDetect = plotKMandCoxOS(dtOV, COHORTNAME = "PCAWG-AU", CLASSIFIERNAME = "HRDetect")
+
+```
+
+
+
+```{r PCAWG-ESAD KM and Cox, echo=FALSE}
+
+## ESAD
+dtESAD = dtPcawg[ dtPcawg$cancer_type == "ESAD", ]
+
+## Simpify staging
+dtESAD$NewTS = NA
+dtESAD$NewTS[ grepl("T1", dtESAD$TS) ] = "I"
+dtESAD$NewTS[ grepl("T2", dtESAD$TS) ] = "II"
+dtESAD$NewTS[ grepl("T3", dtESAD$TS) ] = "III"
+dtESAD$NewTS[ grepl("T4", dtESAD$TS) ] = "IV"
+dtESAD$NewTS = factor(dtESAD$NewTS, levels = c("I", "II", "III", "IV")) 
+dtESAD$TS = dtESAD$NewTS
+dtESAD$NewTS = NULL
+
+# Reclassify CX2CX3 because with TCGA-OV gBRCA1 scaling only one sample classified 
+mESAD = scale(as.matrix(dtESAD[,c("CX3", "CX2")]))
+dtESAD$Classifier = ifelse(mESAD[, "CX3"] > mESAD[,"CX2"], "Predicted sensitive", "Predicted resistant")
+dtESAD$Classifier = factor(dtESAD$Classifier , levels = c("Predicted resistant", "Predicted sensitive"))
+
+write.table(dtESAD, file.path(OUTTABLE, "Clinical_classifier_PCAWG_ESDA_UK.txt"), 
+            quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+
+CLASSIFIER = "Classifier"
+lPCAWGESADCX = plotKMandCoxOS(dtESAD, COHORTNAME = "PCAWG-ESAD", CLASSIFIERNAME = "CX3/CX2 classifier")
+CLASSIFIER = "HRDetectClass"
+lPCAWGESADHRDetect = plotKMandCoxOS(dtESAD, COHORTNAME = "PCAWG-ESAD", CLASSIFIERNAME = "HRDetect", COXMODEL = "simple")
+
+```
+
+
+
+```{r Prepare ICGC, echo=FALSE}
+
+## Prepare survival
+metaIcgc = fread(METAICGC560)
+metaIcgc$OS = ifelse(metaIcgc$donor_vital_status == "alive", 0, 1)
+metaIcgc$OS.time = NA
+
+## Combine column of OS.time
+## First use interval last check up as base (data points for survived patients)
+metaIcgc$OS.time = metaIcgc$`donor_interval_of_last_follow-up_in_DAYS`
+
+## Then add data from deceased people
+metaIcgc$OS.time[ metaIcgc$donor_vital_status == "deceased" ] = 
+  metaIcgc$donor_survival_time_in_DAYS[ metaIcgc$donor_vital_status == "deceased" ]
+
+## Convert
+metaIcgc$OS.time[ metaIcgc$OS.time == "no_data_supplied" ] = NA
+metaIcgc$OS.time = as.numeric(metaIcgc$OS.time)
+
+
+
+## Add HRDetect
+dtHRDetect = fread(HRDETECTICGC560)
+dtHRDetect$shortName = substr(dtHRDetect$sample, 1, nchar(dtHRDetect$sample)-1)
+metaIcgc$HRDetectClass = ifelse(dtHRDetect$predictorProb[ match(metaIcgc$sample_name, dtHRDetect$shortName) ] > 0.7, "Positive", "Negative")
+metaIcgc$HRDetectClass = factor(metaIcgc$HRDetectClass, levels = c("Negative", "Positive"))
+
+## CX classifier
+m560BC = readRDS(ICGC560)
+rownames(m560BC) = substr(rownames(m560BC), 1, nchar(rownames(m560BC))-1)
+
+metaIcgc$CX3 = m560BC[ match(metaIcgc$sample_name, rownames(m560BC)), "CX3" ]
+metaIcgc$CX2 = m560BC[ match(metaIcgc$sample_name, rownames(m560BC)), "CX2" ]
+
+metaIcgc = applyClinClass(metaIcgc, lModel)
+
+## No HRD scores available for PCAWG
+
+
+## Convert age and put into categories
+metaIcgc$Age = metaIcgc$donor_age_at_diagnosis
+metaIcgc$Age[ metaIcgc$Age == "over_80" ] = 80
+metaIcgc$Age = as.numeric(metaIcgc$Age)
+metaIcgc$AgeCategory = cut(metaIcgc$Age, breaks = AGEBRACKETS, labels = 1:(length(AGEBRACKETS)-1))
+
+## Has tumour stage info already but in a different column
+metaIcgc$TS = metaIcgc$T_stage
+
+write.table(metaIcgc, file.path(OUTTABLE, "Clinical_classifier_ICGC_BRCA.txt"), 
+            quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+
+```
+
+
+```{r ICGC KM and Cox, echo=FALSE}
+
+CLASSIFIER = "Classifier"
+l560BCCX = plotKMandCoxOS(metaIcgc, COHORTNAME = "ICGC 560 Breast cancers", CLASSIFIERNAME = "CX3/CX2 classifier")
+CLASSIFIER = "HRDetectClass"
+l560BCHRDetect = plotKMandCoxOS(metaIcgc, COHORTNAME = "ICGC 560 Breast cancers", CLASSIFIERNAME = "HRDetect")
+
+```
+
+
+
+```{r PLOT FOR SUPP MATERIAL, echo=FALSE}
+
+## Ignore error messages!
+
+#### TCGA-OV
+
+WIDTH=100/25.4
+HEIGHT=70/25.4
+
+## gBRCA1
+ggsave(file.path(OUTFIGURES, "SuppFig_17_TCGA-OV_gBRCA1_CX32_KM.svg"), print(lgBRCA1CX$kmPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_17_TCGA-OV_gBRCA1_CX32_Cox.svg"), print(lgBRCA1CX$coxPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+ggsave(file.path(OUTFIGURES, "SuppFig_17_TCGA-OV_gBRCA1_HRDetect_KM.svg"), print(lgBRCA1HRDetect$kmPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_17_TCGA-OV_gBRCA1_HRDetect_Cox.svg"), print(lgBRCA1HRDetect$coxPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+ggsave(file.path(OUTFIGURES, "SuppFig_17_TCGA-OV_gBRCA1_Myriad_KM.svg"), print(lgBRCA1Myriad$kmPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_17_TCGA-OV_gBRCA1_Myriad_Cox.svg"), print(lgBRCA1Myriad$coxPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+
+
+## All TCGA-OV
+ggsave(file.path(OUTFIGURES, "SuppFig_18_TCGA-OV_all_CX32_KM.svg"), print(lTCGAOVCX$kmPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_18_TCGA-OV_all_CX32_Cox.svg"), print(lTCGAOVCX$coxPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+ggsave(file.path(OUTFIGURES, "SuppFig_18_TCGA-OV_all_HRDetect_KM.svg"), print(lTCGAOVHRDetect$kmPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_18_TCGA-OV_all_HRDetect_Cox.svg"), print(lTCGAOVHRDetect$coxPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+ggsave(file.path(OUTFIGURES, "SuppFig_18_TCGA-OV_all_Myriad_KM.svg"), print(lTCGAOVMyriad$kmPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_18_TCGA-OV_all_Myriad_Cox.svg"), print(lTCGAOVMyriad$coxPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+
+
+## PCAWG OV-AU
+ggsave(file.path(OUTFIGURES, "SuppFig_19_PCAWG_OVAU_CX32_KM.svg"), print(lPCAWGAUCX$kmPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_19_PCAWG_OVAU_CX32_Cox.svg"), print(lPCAWGAUCX$coxPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+ggsave(file.path(OUTFIGURES, "SuppFig_19_PCAWG_OVAU_HRDetect_KM.svg"), print(lPCAWGAUHRDetect$kmPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_19_PCAWG_OVAU_HRDetect_Cox.svg"), print(lPCAWGAUHRDetect$coxPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+
+
+## PCAWG ESAD-UK
+ggsave(file.path(OUTFIGURES, "SuppFig_19_PCAWG_ESADUK_CX32_KM.svg"), print(lPCAWGESADCX$kmPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_19_PCAWG_ESADUK_CX32_Cox.svg"), print(lPCAWGESADCX$coxPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+ggsave(file.path(OUTFIGURES, "SuppFig_19_PCAWG_ESADUK_HRDetect_KM.svg"), print(lPCAWGESADHRDetect$kmPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_19_PCAWG_ESADUK_HRDetect_Cox.svg"), print(lPCAWGESADHRDetect$coxPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+
+
+## ICGC 560 breast cancers
+ggsave(file.path(OUTFIGURES, "SuppFig_20_ICGC_560BC_CX32_KM.svg"), print(l560BCCX$kmPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_20_ICGC_560BC_CX32_Cox.svg"), print(l560BCCX$coxPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+ggsave(file.path(OUTFIGURES, "SuppFig_20_ICGC_560BC_HRDetect_KM.svg"), print(l560BCHRDetect$kmPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_20_ICGC_560BC_HRDetect_Cox.svg"), print(l560BCHRDetect$coxPlot, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+
+
+```
+
+
+
+```{r Compare to other classification system, echo=FALSE}
+
+## Add CX5 to dataset
+mAct = readRDS(ACTIVITIES)
+dtSurvOV = readRDS(SURVIVALOV)
+dtSurvOV$CX5 = mAct[,"CX5"][ match(dtSurvOV$Name, rownames(mAct)) ]
+
+## Extract gBRCA1 patients and scale activities
+mBRCA1 = as.matrix(dtSurvOV[ dtSurvOV$Status == "germline BRCA1+LOH", c("CX3", "CX2", "CX5")])
+rownames(mBRCA1) = dtSurvOV$Name[ dtSurvOV$Status == "germline BRCA1+LOH" ]
+smBRCA1 = scale(mBRCA1)
+## Save model data
+lModelAlt = list(mean = attributes(smBRCA1)$`scaled:center`, 
+              scale = attributes(smBRCA1)$`scaled:scale`)
+
+
+## Hierarchical clustering to cut data in two
+hcBRCA1 = hclust(dist(smBRCA1, method = "euclidean"), method = "ward.D2") 
+vCluster = cutree(hcBRCA1, k = 2)
+
+## Test on KM and Cox whether this is a good split
+dtBRCA1 = dtSurvOV[ dtSurvOV$Status == "germline BRCA1+LOH", ]
+dtBRCA1$Cluster = vCluster[ match(dtBRCA1$Name, names(vCluster)) ]
+dtBRCA1$Cluster = factor(dtBRCA1$Cluster, levels = c(2,1), labels = c("Resistant", "Sensitive"))
+
+kmAlt = survfit(Surv(OS.time, OS) ~ Cluster , data = dtBRCA1)
+pKMAlt = ggsurvplot(kmAlt, data = dtBRCA1, risk.table = TRUE, pval = TRUE, conf.int = FALSE,
+                   xlim = c(0,4000), break.time.by = 365, 
+                   ggtheme = theme_tufte(base_size = 6, base_family = "ArialMT"),
+                   surv.median.line = "hv", risk.table.y.text.col = TRUE, risk.table.y.text = FALSE) + 
+  ggtitle("OS in TCGA-OV gBRCA1 patients by  classifer")
+
+dtBRCA1$AgeCategory = cut(dtBRCA1$AgeY, breaks = AGEBRACKETS, labels = 1:(length(AGEBRACKETS)-1))
+resCoxAlt = coxph(Surv(OS.time, OS) ~ Cluster + AgeCategory + TS, data = dtBRCA1)
+pCoxAlt = ggforest(resCoxAlt, data = dtBRCA1, main = paste("Cox HR model for alt. classifier"))
+# Nothing
+
+
+## Train svm on gBRCA1 cluster
+dfSMBRCA1 = data.frame(smBRCA1)
+dfSMBRCA1$Cluster = factor(vCluster, levels = c(2,1), labels = c("Resistant", "Sensitive"))
+
+modelSVM = train(Cluster ~., data = dfSMBRCA1, method = "svmLinear", trControl = trainControl("cv", number = 10))
+
+## Apply same scaling on TCGA-OV than on gBRCA1 samples
+dfSVMOV = as.data.frame(dtSurvOV[,c("CX3", "CX2", "CX5")])
+rownames(dfSVMOV) = dtSurvOV$Name
+dfSVMOV = sweep(sweep(dfSVMOV, 2, lModelAlt$mean, FUN = '-'), 2, lModelAlt$scale, FUN = "/")
+
+
+## Apply on TCGA-OV
+dtSurvOV$Cluster = modelSVM %>% predict(dfSVMOV)
+
+## KM and Cox
+kmAlt2 = survfit(Surv(OS.time, OS) ~ Cluster , data = dtSurvOV)
+pKMAlt2 = ggsurvplot(kmAlt2, data = dtSurvOV, risk.table = TRUE, pval = TRUE, conf.int = FALSE,
+                   xlim = c(0,4000), break.time.by = 365, 
+                   ggtheme = theme_tufte(base_size = 6, base_family = "ArialMT"),
+                   surv.median.line = "hv", risk.table.y.text.col = TRUE, risk.table.y.text = FALSE) + 
+  ggtitle("OS in TCGA-OV patients by alternative classifer")
+
+dtSurvOV$AgeCategory = cut(dtSurvOV$AgeY, breaks = AGEBRACKETS, labels = 1:(length(AGEBRACKETS)-1))
+resCoxAlt2 = coxph(Surv(OS.time, OS) ~ Cluster + AgeCategory + TS, data = dtSurvOV)
+pCoxAlt2 = ggforest(resCoxAlt2, data = dtSurvOV, main = paste("Cox HR model for alt. classifier"))
+
+
+#### Save output
+colnames(dfSVMOV) = c("sCX3", "sCX2", "sCX5")
+if(identical(dtSurvOV$Name, rownames(dfSVMOV))) {
+  dtSurvOV2 = cbind(dtSurvOV, dfSVMOV)
+  write.table(dtSurvOV2, file.path(OUTTABLE, "Clinical_classifier_TCGA_SVM.txt"), 
+            quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+
+}
+
+
+## gBRCA1
+ggsave(file.path(OUTFIGURES, "SuppFig_21_TCGA-OV_gBRCA1_HCLUSTSVM_KM.svg"), print(pKMAlt, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_21_TCGA-OV_gBRCA1_HCLUSTSVM_Cox.svg"), print(pCoxAlt, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+ggsave(file.path(OUTFIGURES, "SuppFig_21_TCGA-OV_all_HCLUSTSVM_KM.svg"), print(pKMAlt2, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_21_TCGA-OV_all_HCLUSTSVM_Cox.svg"), print(pCoxAlt2, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+```
+
+
+```{r log reg only on deaths, echo=FALSE}
+
+## Add CX5 to dataset
+mAct = readRDS(ACTIVITIES)
+dtSurvOV = readRDS(SURVIVALOV)
+dtSurvOV$CX5 = mAct[,"CX5"][ match(dtSurvOV$Name, rownames(mAct)) ]
+
+## Extract gBRCA1 patients and scale activities
+mBRCA1 = as.matrix(dtSurvOV[ dtSurvOV$Status == "germline BRCA1+LOH", c("CX3", "CX2", "CX5")])
+rownames(mBRCA1) = dtSurvOV$Name[ dtSurvOV$Status == "germline BRCA1+LOH" ]
+smBRCA1 = scale(mBRCA1)
+## Save model data
+lModelAlt = list(mean = attributes(smBRCA1)$`scaled:center`, 
+              scale = attributes(smBRCA1)$`scaled:scale`)
+
+## Add events
+smBRCA1OS = cbind(smBRCA1, "Events" = dtSurvOV$OS[ match(rownames(smBRCA1), dtSurvOV$Name) ])
+dfBRCA1OS = data.frame(smBRCA1OS)
+dfBRCA1OS$Events = factor(dfBRCA1OS$Events)
+
+modelLogReg = glm(Events ~ CX2 + CX3 + CX5, data = dfBRCA1OS, family = "binomial")
+
+## Apply to TCGA-OV and plot
+dfLogRegOV = as.data.frame(dtSurvOV[,c("CX2", "CX3", "CX5")])
+rownames(dfLogRegOV) = dtSurvOV$Name
+dfLogRegOV = sweep(sweep(dfLogRegOV, 2, lModelAlt$mean, FUN = '-'), 2, lModelAlt$scale, FUN = "/")
+
+
+## Apply on TCGA-OV
+dtSurvOV$LogReg = predict(modelLogReg, newdata = dfLogRegOV, type = "response")
+dtSurvOV$LogRegClass = cut(dtSurvOV$LogReg, breaks = c(0, 0.5, 1), labels = c("Sensitive", "Resistant"))
+dtSurvOV$LogRegClass = factor(dtSurvOV$LogRegClass, levels = c("Resistant", "Sensitive"))
+dtSurvOV$AgeCategory = cut(dtSurvOV$AgeY, breaks = AGEBRACKETS, labels = 1:(length(AGEBRACKETS)-1))
+
+kmAltLogReg = survfit(Surv(OS.time, OS) ~ LogRegClass , data = dtSurvOV)
+pKMAltLogReg = ggsurvplot(kmAltLogReg, data = dtSurvOV, risk.table = TRUE, pval = TRUE, conf.int = FALSE,
+                   xlim = c(0,4000), break.time.by = 365, 
+                   ggtheme = theme_tufte(base_size = 6, base_family = "ArialMT"),
+                   surv.median.line = "hv", risk.table.y.text.col = TRUE, risk.table.y.text = FALSE) + 
+  ggtitle("OS in TCGA-OV patients by alternative logreg classifer")
+
+
+resCoxAltLogReg = coxph(Surv(OS.time, OS) ~ LogRegClass + AgeCategory + TS, data = dtSurvOV)
+pCoxAltLogReg = ggforest(resCoxAltLogReg, data = dtSurvOV, main = paste("Cox HR model for alt. logreg classifier"))
+
+
+#### Save output
+colnames(dfLogRegOV) = c("sCX3", "sCX2", "sCX5")
+if(identical(dtSurvOV$Name, rownames(dfLogRegOV))) {
+  dtSurvOV2 = cbind(dtSurvOV, dfLogRegOV)
+  write.table(dtSurvOV2, file.path(OUTTABLE, "Clinical_classifier_TCGA_LogReg.txt"), 
+            quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+
+}
+
+ggsave(file.path(OUTFIGURES, "SuppFig_21_TCGA-OV_all_LogReg_KM.svg"), print(pKMAltLogReg, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_21_TCGA-OV_all_LogReg_Cox.svg"), print(pCoxAltLogReg, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+```
+
+
+
+```{r svm only on deaths, echo=FALSE}
+
+## Add CX5 to dataset
+mAct = readRDS(ACTIVITIES)
+dtSurvOV = readRDS(SURVIVALOV)
+dtSurvOV$CX5 = mAct[,"CX5"][ match(dtSurvOV$Name, rownames(mAct)) ]
+
+## Extract gBRCA1 patients and scale activities
+mBRCA1 = as.matrix(dtSurvOV[ dtSurvOV$Status == "germline BRCA1+LOH", c("CX3", "CX2", "CX5")])
+rownames(mBRCA1) = dtSurvOV$Name[ dtSurvOV$Status == "germline BRCA1+LOH" ]
+smBRCA1 = scale(mBRCA1)
+## Save model data
+lModelAlt = list(mean = attributes(smBRCA1)$`scaled:center`, 
+              scale = attributes(smBRCA1)$`scaled:scale`)
+
+## Add events
+smBRCA1OS = cbind(smBRCA1, "Events" = dtSurvOV$OS[ match(rownames(smBRCA1), dtSurvOV$Name) ])
+dfBRCA1OS = data.frame(smBRCA1OS)
+dfBRCA1OS$Events = factor(dfBRCA1OS$Events)
+
+modelSVMOnlyDeaths = train(Events ~., data = dfBRCA1OS, method = "svmLinear", trControl = trainControl("cv", number = 10))
+
+## Apply to TCGA-OV and plot
+dtSVMOVOnlyDeaths = as.data.frame(dtSurvOV[,c("CX2", "CX3", "CX5")])
+rownames(dtSVMOVOnlyDeaths) = dtSurvOV$Name
+dtSVMOVOnlyDeaths = sweep(sweep(dtSVMOVOnlyDeaths, 2, lModelAlt$mean, FUN = '-'), 2, lModelAlt$scale, FUN = "/")
+
+
+## Apply on TCGA-OV
+dtSurvOV$SVM = predict(modelSVMOnlyDeaths, newdata = dtSVMOVOnlyDeaths)
+dtSurvOV$SVM = factor(dtSurvOV$SVM, levels = c(1, 0), labels = c("Resistant", "Sensitive"))
+
+dtSurvOV$AgeCategory = cut(dtSurvOV$AgeY, breaks = AGEBRACKETS, labels = 1:(length(AGEBRACKETS)-1))
+
+kmAltSVM = survfit(Surv(OS.time, OS) ~ SVM , data = dtSurvOV)
+pKMAltSVM = ggsurvplot(kmAltSVM, data = dtSurvOV, risk.table = TRUE, pval = TRUE, conf.int = FALSE,
+                   xlim = c(0,4000), break.time.by = 365, 
+                   ggtheme = theme_tufte(base_size = 6, base_family = "ArialMT"),
+                   surv.median.line = "hv", risk.table.y.text.col = TRUE, risk.table.y.text = FALSE) + 
+  ggtitle("OS in TCGA-OV patients by alternative SVM classifer")
+
+
+resCoxAltSVM = coxph(Surv(OS.time, OS) ~ SVM + AgeCategory + TS, data = dtSurvOV)
+pCoxAltSVM = ggforest(resCoxAltSVM, data = dtSurvOV, main = paste("Cox HR model for alt. logreg classifier"))
+
+#### Save output
+colnames(dtSVMOVOnlyDeaths) = c("sCX3", "sCX2", "sCX5")
+if(identical(dtSurvOV$Name, rownames(dtSVMOVOnlyDeaths))) {
+  dtSurvOV2 = cbind(dtSurvOV, dtSVMOVOnlyDeaths)
+  write.table(dtSurvOV2, file.path(OUTTABLE, "Clinical_classifier_TCGA_SVM_Deaths.txt"), 
+            quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+
+}
+
+ggsave(file.path(OUTFIGURES, "SuppFig_21_TCGA-OV_all_SVM_KM.svg"), print(pKMAltSVM, newpage = FALSE), width = WIDTH, height = HEIGHT)
+ggsave(file.path(OUTFIGURES, "SuppFig_21_TCGA-OV_all_SVM_Cox.svg"), print(pCoxAltSVM, newpage = FALSE), width = WIDTH, height = HEIGHT)
+
+```
+

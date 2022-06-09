@@ -1,0 +1,31 @@
+Name	Type	TCGA	dCIN	AllSamples	DiploidSamples	NonDiploidSamples	NearDiploidSamples	NearTetraploidSamples
+_Astrocytoma	Solid cancers	GBM	0.967	300	10	290	228	62
+Basal cell carcinoma	Solid cancers	SKCM	0.775	102	23	79	75	4
+Breast cancer	Solid cancers	BRCA	0.845	200	31	169	140	29
+Cervical cancer	Solid cancers	CESC	0.952	84	4	80	51	29
+Colon adenocarcinoma	Solid cancers	COAD	0.993	144	1	143	124	19
+Embryonal rhabdomyosarcoma	Solid cancers	NA	0.878	74	9	65	53	12
+Hepatoblastoma	Solid cancers	LIHC	0.830	100	17	83	80	3
+Leiomyosarcoma	Solid cancers	SARC	0.936	109	7	102	68	34
+Lung cancer	Solid cancers	LUAD	0.820	200	36	164	119	45
+Lung cancer	Solid cancers	LUSC	0.820	200	36	164	119	45
+Malignant melanoma	Solid cancers	SKCM	0.849	199	30	169	138	31
+Neuroblastoma	Solid cancers	NA	0.856	195	28	167	109	58
+Osteosarcoma	Solid cancers	NA	0.960	151	6	145	86	59
+Ovarian cancer	Solid cancers	OV	0.975	200	5	195	158	37
+Prostate cancer	Solid cancers	PRAD	0.920	200	16	184	141	43
+Retinoblastoma	Solid cancers	UVM	0.918	122	10	112	111	1
+Squamous cell carcinoma	Solid cancers	SKCM	0.940	200	12	188	149	39
+Teratoma	Solid cancers	NA	0.985	200	3	197	166	31
+Acute myeloid leukemia	Haematopoietic cancers 	LAML	0.705	298	88	210	207	3
+Adult T-cell lymphoma/leukemia 	Haematopoietic cancers 	NA	0.917	253	21	232	224	8
+B-prolymphocytic leukemia	Haematopoietic cancers 	NA	0.785	93	20	73	72	1
+Burkitt lymphoma/leukemia	Haematopoietic cancers 	NA	0.472	163	86	77	75	2
+Chronic myeloid leukemia	Haematopoietic cancers 	LCML	0.550	200	90	110	110	0
+Follicular lymphoma	Haematopoietic cancers 	NA	0.817	300	55	245	228	17
+Hodgkins disease	Haematopoietic cancers 	NA	0.888	232	26	206	129	77
+Multiple myeloma	Haematopoietic cancers 	NA	0.785	298	64	234	217	17
+T-prolymphocytic leukemia	Haematopoietic cancers 	NA	0.816	136	25	111	111	0
+Percent of solid tumors 	NA	NA	NA	2780	0.089	0.911	0.718	0.193
+Percent of haematopoietic cancers	NA	NA	NA	1973	0.241	0.759	0.696	0.063
+Percent of solid and haematopoietic cancers	NA	NA	NA	4573	0.152	0.848	0.709	0.139

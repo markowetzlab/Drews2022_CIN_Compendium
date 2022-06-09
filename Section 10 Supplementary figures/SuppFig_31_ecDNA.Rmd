@@ -1,0 +1,412 @@
+---
+title: 'SuppFig ecDNA'
+author: "Drews RM et al."
+date: "17/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+rm(list=ls(all=TRUE))
+
+library(data.table)
+library(reshape2)
+library(ggplot2)
+library(ggthemes)
+library(lsa)
+library(patchwork)
+# ## For gene overlap with amplicons (CDK12 analysis)
+library(stringr)
+library(GenomicRanges)
+library(Homo.sapiens)
+library(lemon)
+
+theme_set(theme_tufte(base_size = 6, base_family = "ArialMT"))
+theme_update(text = element_text(size = 6),
+             axis.text = element_text(size = 6),
+             axis.line = element_line(size = 0.5), 
+             axis.ticks = element_line(size = 0.5),
+             axis.ticks.length = unit(.1, "cm"))
+
+# Caveat: Only works if markdown is called within RStudio
+BASE=dirname(rstudioapi::getSourceEditorContext()$path)
+
+## Approach 1
+ACTIVITIES=file.path(BASE, "input/Signature_Compendium_v5_Cosine-0.74_Activities_THRESH95_NAMESAPRIL21.rds")
+RAW=file.path(BASE, "input/Signature_Compendium_v5_Cosine-0.74_Activities_raw_THRESH95_NAMESAPRIL21.rds")
+ECDNA=file.path(BASE, "input/Kim2020_ecDNA.txt")
+CDK4POS = file.path(BASE, "input/Kim2020_ecDNA_SMTable1_LookupEnsembl.txt")
+
+OUTPATH = file.path(BASE, "output")
+
+# Load general data
+dtSigs = data.table(melt(readRDS(ACTIVITIES)))
+dtZ = data.table(melt(scale(readRDS(ACTIVITIES), center = TRUE, scale = TRUE)))
+dtRaw = data.table(melt(readRDS(RAW)))
+
+```
+
+```{r functions, echo=FALSE, verbose=FALSE}
+
+## New function for bar plot and Fisher test
+
+plotECDNAperSig = function(dtSigsFilt, AMPLICON = "Circular", COLOUR = "#e31a1c") {
+  
+  allSigs = levels(dtSigsFilt$Var2)
+  lFisher = lapply(allSigs, function(thisSig){
+    
+    ## Filter and factorise (for determining the order)
+    dtThis = dtSigsFilt[ dtSigsFilt$Var2 == thisSig & dtSigsFilt$ecDNA %in% c(AMPLICON, "No-fSCNA"), ]
+    dtThis$bin = factor(dtThis$bin, levels = c("TRUE", "FALSE"))
+    dtThis$ecDNA = factor(dtThis$ecDNA, levels = c(AMPLICON, "No-fSCNA"))
+    
+    ## The Magic
+    FisherTest = fisher.test(table(dtThis$bin, dtThis$ecDNA))
+    
+    ## Prepare plot
+    out = melt(prop.table(table(dtThis$bin, dtThis$ecDNA), margin = 1))
+    # out = melt(table(dtThis$bin, dtThis$ecDNA))
+    out$Sig = thisSig
+    out$OddsRatio = FisherTest$estimate
+    out$pVal = FisherTest$p.value
+    
+    return(out)
+  })
+  
+  dtFisher = data.table(do.call(rbind, lFisher))
+  dtFisher$Sig = factor(dtFisher$Sig, levels = allSigs)
+  dtFisher$value = as.numeric(dtFisher$value)
+  dtFisher$OddsRatio = as.numeric(dtFisher$OddsRatio)
+  dtFisher$pVal = as.numeric(dtFisher$pVal)
+  dtFisher$pAdj = p.adjust(dtFisher$pVal, method = "BH")
+  dtFisher$LogOdds = log(dtFisher$OddsRatio)
+  dtFisher$Significant = factor(dtFisher$pAdj < 0.001, levels = c("TRUE", "FALSE"), 
+                                labels = c("Sign.", "NS"))
+  
+  dtFisher$Status = paste(dtFisher$Var2, dtFisher$Significant)
+  dtFisher$Status = factor(dtFisher$Status, levels = c("No-fSCNA Sign.", paste(AMPLICON, "Sign."),
+                                                       "No-fSCNA NS", paste(AMPLICON, "NS")))
+  
+  pFisher1 = ggplot(dtFisher, aes(x = Var1, y = value, fill = Status)) + 
+    geom_bar(stat = "identity", position="fill", width = 1) +
+    facet_wrap(. ~ Sig, nrow = 1) + 
+    scale_fill_manual(values = c("#ffeda0", COLOUR, "grey80", "grey20")) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1), 
+          legend.position = "bottom") + coord_capped_cart(left = "both", bottom = "both") +
+    scale_y_continuous(labels = scales::percent) + labs(x = "Signature presence", y = "Samples")
+  
+  pFisher2 = ggplot(dtFisher, aes(x = Sig, y = LogOdds, fill = Significant)) + 
+    labs(x = "Signature", y = "Log Odds") + scale_fill_manual(values = c(COLOUR, "grey20")) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    geom_bar(stat = "identity") + coord_capped_cart(left = "both", bottom = "both", ylim = c(-9, 15))
+  
+  lOut = list("Fisher1" = pFisher1, "Fisher2" = pFisher2)
+  return(lOut)
+}
+
+
+# Test sig differences only for two classes
+testCircularOnly = function(dtZfilt) {
+  
+  allSigs = levels(dtZfilt$Var2)
+  lCirc = lapply(allSigs, function(thisSig) {
+    
+    dtCirc = dtZfilt$value[ dtZfilt$Var2 == thisSig & dtZfilt$ecDNA == "Circular" ]
+    dtControl = dtZfilt$value[ dtZfilt$Var2 == thisSig & dtZfilt$ecDNA == "No-fSCNA" ]
+    
+    tTest= t.test(dtCirc, dtControl, var.equal = FALSE)
+    meanCircular = tTest$estimate[1]
+    meanControl = tTest$estimate[2]
+    diffMean = signif(meanCircular - meanControl, 3)
+    pVal = signif(tTest$p.value, 3)
+    
+    vOut = c(thisSig, signif(meanCircular, 3), signif(meanControl, 3), diffMean, pVal)
+    return(vOut)
+    
+  })
+  
+  dtCirc = data.table(do.call(rbind, lCirc))
+  colnames(dtCirc) = c("Sig", "MeanCircular", "MeanNofSCNA", "DiffMean", "pVal")
+  dtCirc$MeanCircular = as.numeric(dtCirc$MeanCircular)
+  dtCirc$MeanNofSCNA = as.numeric(dtCirc$MeanNofSCNA)
+  dtCirc$DiffMean = as.numeric(dtCirc$DiffMean)
+  dtCirc$pVal = as.numeric(dtCirc$pVal)
+
+  dtCirc$pAdj = p.adjust(dtCirc$pVal, method = "BH")
+  
+  return(dtCirc)  
+}
+
+# Test sig differences against "No-fSCNA" group
+testAllvsNo = function(dtZfilt, sigPVal = 0.05) {
+  
+  allSigs = levels(dtZfilt$Var2)
+  lGroups = lapply(allSigs, function(thisSig) {
+    
+    dtSig = dtZfilt[ dtZfilt$Var2 == thisSig, ]
+    tTest = pairwise.t.test(dtSig$value, dtSig$ecDNA, p.adjust.method = "BH", pool.sd = FALSE)
+    dtTest = melt(tTest$p.value)
+    dtNo = dtTest[ dtTest$Var1 == "No-fSCNA", ]
+    
+    dtSig$Significant = "No"
+    sigGroups = as.vector(dtNo$Var2[ dtNo$value < sigPVal ])
+    dtSig$Significant[ dtSig$ecDNA %in% sigGroups ] = "Yes"
+    
+    return(dtSig)
+    
+  })
+
+  dtGroups = data.table(do.call(rbind, lGroups))
+  return(dtGroups)  
+}
+
+```
+
+## Excourse: ecDNA
+
+Question: Is the phenomena of ecDNA captured by the pancancer signatures?
+
+Approach 1: Compare signature exposures to ecDNA values from Kim et al. 2020.
+
+```{r new A1 part 1, echo=FALSE}
+
+# Binarise activities
+dtSigs$bin = dtSigs$value > 0
+
+# Load data from Kim et al.
+dtEC = fread(ECDNA)
+
+# This is what we want to look at
+table(dtEC$sample_classification)
+
+# They have a few thousand TCGA samples => Get TCGA tumour samples
+dtAmplicons = dtEC[ grepl("TCGA", dtEC$sample_barcode) & dtEC$tumor_or_normal == "tumor", ]
+
+# Transfer sample classification to signature data table and see for how many samples we have both.
+dtSigs$ecDNA = dtAmplicons$sample_classification[ match(substr(dtSigs$Var1, 1, 12),
+                                                        dtAmplicons$patient_barcode) ]
+dtSigsFilt = dtSigs[ ! is.na(dtSigs$ecDNA), ]
+
+## The four from Kim et al.
+lCircular = plotECDNAperSig(dtSigsFilt, AMPLICON = "Circular", COLOUR = "#e31a1c")
+lBFB = plotECDNAperSig(dtSigsFilt, AMPLICON = "BFB", COLOUR = "#41ab5d")
+lHeavy = plotECDNAperSig(dtSigsFilt, AMPLICON = "Heavily-rearranged", COLOUR = "#fe9929")
+lLinear = plotECDNAperSig(dtSigsFilt, AMPLICON = "Linear", COLOUR = "#0570b0")
+
+## Merge all categories
+dtMerge = dtSigsFilt
+dtMerge$ecDNA[ dtMerge$ecDNA != "No-fSCNA" ] = "Any ecDNA"
+lAny = plotECDNAperSig(dtMerge, AMPLICON = "Any ecDNA", COLOUR = "#6a51a3")
+
+
+## Plot
+## Prepare multiplot
+addSmallLegend <- function(myPlot, pointSize = 0.5, textSize = 3, spaceLegend = 0.1) {
+    myPlot +
+        guides(shape = guide_legend(override.aes = list(size = pointSize)),
+               color = guide_legend(override.aes = list(size = pointSize))) +
+        theme(legend.title = element_text(size = textSize),
+              legend.text  = element_text(size = textSize),
+              legend.key.size = unit(spaceLegend, "lines"))
+}
+
+lAny$Fisher1 = lAny$Fisher1 + theme(axis.text.x = element_blank(), 
+                                    axis.title.x = element_blank())
+lAny$Fisher1 = addSmallLegend(lAny$Fisher1, textSize = 6, spaceLegend = 0.6)
+lAny$Fisher2 = lAny$Fisher2 + theme(legend.position = "None",
+                                    axis.text.x = element_blank(),
+                                    axis.title.x = element_blank())
+
+lCircular$Fisher1 = lCircular$Fisher1 + theme( axis.text.x = element_blank(), 
+                                              axis.title.x = element_blank())
+lCircular$Fisher1 = addSmallLegend(lCircular$Fisher1, textSize = 6, spaceLegend = 0.6)
+lCircular$Fisher2 = lCircular$Fisher2 + theme(legend.position = "None",
+                                              axis.text.x = element_blank(),
+                                              axis.title.x = element_blank())
+
+lBFB$Fisher1 = lBFB$Fisher1 + theme(axis.text.x = element_blank(),
+                                    axis.title.x = element_blank())
+lBFB$Fisher1 = addSmallLegend(lBFB$Fisher1, textSize = 6, spaceLegend = 0.6)
+lBFB$Fisher2 = lBFB$Fisher2 + theme(legend.position = "None", axis.text.x = element_blank(),
+                                         axis.title.x = element_blank())
+
+lHeavy$Fisher1 = lHeavy$Fisher1 + theme(axis.text.x = element_blank(), 
+                                        axis.title.x = element_blank())
+lHeavy$Fisher1 = addSmallLegend(lHeavy$Fisher1, textSize = 6, spaceLegend = 0.6)
+lHeavy$Fisher2 = lHeavy$Fisher2 + theme(legend.position = "None", 
+                                              axis.text.x = element_blank(), 
+                                              axis.title.x = element_blank())
+
+lLinear$Fisher1 = addSmallLegend(lLinear$Fisher1, textSize = 6, spaceLegend = 0.6)
+lLinear$Fisher2 = lLinear$Fisher2 + theme(legend.position = "None")
+
+## Make mega plot
+pOut = lAny$Fisher1 + lAny$Fisher2 + lCircular$Fisher1 + lCircular$Fisher2 + 
+  lBFB$Fisher1 + lBFB$Fisher2 + lHeavy$Fisher1 + lHeavy$Fisher2 + lLinear$Fisher1 +
+  lLinear$Fisher2 + plot_layout(ncol = 2, widths = c(0.75, 0.25)) 
+
+## svg plus pdf
+cairo_pdf(file.path(OUTPATH, "SuppFig_31_ecDNA_vs_allSigs.pdf"), width = 180/25.4, height = 180/25.4)
+print(pOut); dev.off()
+
+ggsave(file.path(OUTPATH, "SuppFig_31_ecDNA_vs_allSigs.svg"), pOut, width = 180/25.4, height = 180/25.4)
+
+```
+
+
+```{r check CDK4, echo=FALSE}
+
+## CX13 has strongest gene correlation in the whole study with CDK4
+## CX13 has strongest correlation with ecDNA and (non-BFB) circular amplicons
+## CDK4 amplification is a known ecDNA event (Kumar et al., Science Advances, 2020)
+
+## => Do samples with circular events have CDK4 amplification
+## AKA => Is the correlation with CDK4 gene spurious or a true correlation?
+dtCdk4 = fread(CDK4POS)
+
+# Get TCGA samples and all samples with circular amplicons
+dtCdk4 = dtCdk4[ grepl("TCGA", dtCdk4$sample_barcode) & dtCdk4$amplicon_classification == "Circular", ]
+
+# Get location and multiply samples
+## Duplicate rows
+encounters = str_count(dtCdk4$amplicon_intervals, ",") + 1
+dtMult = dtCdk4[ rep(1:nrow(dtCdk4), times = encounters), ]
+
+## Split interval into subintervals
+dtMult$subIndex = unlist(sapply(encounters, seq))
+dtMult$subInterval = unlist(str_split(dtMult$amplicon_intervals[ dtMult$subIndex == 1 ], ","))
+dtMult$index = paste(dtMult$amplicon_index, dtMult$subIndex, sep = ".")
+
+## Give it an ID for easier identification
+dtMult$ID = paste(substr(dtMult$sample_barcode,1,12), substr(dtMult$amplicon_classification, 1, 4), dtMult$index, sep = ".")
+
+
+# Convert to granges
+
+## Split up genomic location
+dtMult$chr = sapply(str_split(dtMult$subInterval, ":"), function(x) x[1])
+lLocs = strsplit(sapply(str_split(dtMult$subInterval, ":"), function(x) x[2]), "-")
+dtMult$start = sapply(lLocs, function(x) as.numeric(x[1]))
+dtMult$end = sapply(lLocs, function(x) as.numeric(x[2]))
+
+## Clean up
+dtMult$amplicon_intervals = NULL
+dtMult$amplicon_index = NULL
+dtMult$subInterval = NULL
+dtMult$subIndex = NULL
+dtMult = dtMult[ ! grepl("GL", dtMult$chr), ]
+dtMult$chr = paste0("chr", dtMult$chr)
+
+## Convert
+grMult = makeGRangesFromDataFrame(dtMult, keep.extra.columns = TRUE)
+
+# Annotate with genes
+## reference genome: hg19 (Kim et al., 2020)
+
+## Find overlaps between genes and amplicons
+allGenes = genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
+grOverlaps = findOverlaps(grMult, allGenes)
+grMultOL = grMult[ queryHits(grOverlaps) ]
+grMultOL$gene = allGenes$gene_id[ subjectHits(grOverlaps) ] 
+
+## Convert EntrezGeneID to canonical name
+entrez2name = as.data.frame(org.Hs.egSYMBOL)
+grMultOL$symbol = entrez2name$symbol[ match(grMultOL$gene, entrez2name$gene_id) ]
+
+## Identify samples with CDK4 amplicons
+cdk4samples = unique(substr(grMultOL$sample_barcode[ grepl("CDK4", grMultOL$symbol) ], 1,12))
+## 32 samples
+
+## Check signature 13 (16 ws previous name)
+sig16 = dtSigs[ dtSigs$Var2 == "CX13", ]
+sig16$cdk4 = substr(sig16$Var1, 1, 12) %in% cdk4samples
+## Only 23 have signature activity
+
+## Plot two summary plots
+dfGenesAmplicons = data.frame(sort(table(grMultOL$symbol), decreasing = TRUE))
+dfGenesAmplicons$Var1 = factor(as.character(dfGenesAmplicons$Var1), levels = rev(as.character(dfGenesAmplicons$Var1)))
+
+p50Genes = ggplot(dfGenesAmplicons[1:50,], aes(y = Var1, x = Freq)) + geom_bar(stat = "identity") + #theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+   labs(y = "Genes with most circular amplicons in TCGA", x = "Frequency")
+
+pCDK4 = ggplot(sig16, aes(x = cdk4, y = value)) + geom_boxplot() + labs(x = "CDK4 amplicon", y = "CX13 activity")
+
+## Output
+pAmps = p50Genes + pCDK4 + plot_layout(widths = c(0.8, 0.2))
+
+```
+
+
+
+```{r general function for checking single genes}
+
+## This analysis produces the results needed to exclude genes used in signature aetiologies (red bars in EDF 8a)
+checkGenes = function(grMultOL, GENE = "CDK4", SIGNATURE = "CX13") {
+  
+  cdk4samples = unique(substr(grMultOL$sample_barcode[ grepl(GENE, grMultOL$symbol) ], 1,12))
+  ## 32 samples for CDK4
+  
+  ## Check signature 16
+  sig16 = dtSigs[ dtSigs$Var2 == SIGNATURE, ]
+  sig16$cdk4 = substr(sig16$Var1, 1, 12) %in% cdk4samples
+  sig16$cdk4 = factor(sig16$cdk4, levels = c(FALSE, TRUE))
+  ## Only 23 have signature activity
+  
+  ## Plot
+  pCDK4 = ggplot(sig16, aes(x = cdk4, y = value)) + geom_boxplot() + 
+    labs(x = paste(GENE, "amplicon"), y = paste(SIGNATURE, "activity"))
+  
+  ## t-test
+  if(sum(sig16$cdk4 == TRUE) > 2) {
+    resTTest = t.test(sig16$value[ sig16$cdk4 == TRUE ], sig16$value[ sig16$cdk4 == FALSE ], 
+                    var.equal = FALSE)
+  } else {
+    resTTest = paste("only", sum(sig16$cdk4 == TRUE), "observations")
+  }
+  
+  ## Output
+  lOut = list(plot = pCDK4, stat = resTTest)
+
+  return(lOut)
+}
+
+## CCND1
+lCCND1CX9 = checkGenes(grMultOL, GENE = "CCND1", SIGNATURE = "CX9")
+
+## CDK4
+lCDK4CX8 = checkGenes(grMultOL, GENE = "CDK4", SIGNATURE = "CX8")
+lCDK4CX9 = checkGenes(grMultOL, GENE = "CDK4", SIGNATURE = "CX9")
+lCDK4CX11 = checkGenes(grMultOL, GENE = "CDK4", SIGNATURE = "CX11")
+lCDK4CX13 = checkGenes(grMultOL, GENE = "CDK4", SIGNATURE = "CX13")
+
+## ERBB2
+lERBB2CX9 = checkGenes(grMultOL, GENE = "ERBB2", SIGNATURE = "CX9")
+
+
+## A bit more systematic approach for CX8
+sig8Genes = c("AKT1", "CDK4", "ERBB3", "ERCC2", "MAPK1", "MYC", "PCBP1", "PIK3R2", "PMS1", "PPP2R1A", 
+              "RAC1", "SPOP", "U2AF1")
+lSig8Genes = lapply(sig8Genes, function(thisGene) {
+  
+  lGene = checkGenes(grMultOL, GENE = thisGene, SIGNATURE = "CX8")
+  print(thisGene)
+  ## Too few obs catch
+  if(class(lGene$stat) == "character") {
+    print(lGene$stat)
+    return(lGene)
+  }
+  
+  ## Enough obs for test
+  if(lGene$stat$p.value < 0.05) {
+    print(paste("Shift in mean:", as.numeric(lGene$stat$estimate[1] - lGene$stat$estimate[2])))
+    print(lGene$stat$p.value)
+  } else {
+    print("n.s.")
+  }
+  
+  return(lGene)
+  
+})
+
+```

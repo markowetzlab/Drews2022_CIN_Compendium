@@ -1,0 +1,267 @@
+---
+title: "CIN signatures linked to changes in expression of genes involved in DNA repair"
+output:
+  html_document:
+    df_print: paged
+---
+
+#### LOAD PACKAGES & ENVIRONMENT
+```{r}
+options(java.parameters = "-Xmx8000m")
+
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(ppcor)
+library(ggrepel)
+library(ggpubr)
+library(fgsea)
+library(ggplot2)
+library(ggthemes)
+library(lemon)
+library(RColorBrewer)
+library(patchwork)
+
+#PATHS
+BASE=dirname(rstudioapi::getSourceEditorContext()$path)
+OUTPUT=file.path(BASE, "output")
+```
+
+##SELECT GENE EXPRESSION DATA OF DNA REPAIR GENES
+```{r}
+# #Performed in the cluster
+# #List of DNA repair genes downloaded from Reactome (DNA repair pathway) --> included in the CNSignatures/0_external_data folder
+
+# #Directory
+# INPUT_DIR <- "/storage/scratch01/users/bhernando"
+
+# #Read DNArepair genes from reactome txt
+# DNARepair<-read.delim(paste0(INPUT_DIR,"/DNARepair_genes.txt"), head=T)
+
+# #Load TCGA gene expression
+# TCGA_expression<-read.delim(paste0(INPUT_DIR,"/CosmicCompleteGeneExpression.tsv.gz"), head=T)
+
+# #Select expression of DNA repair genes
+# DNArepair_expression<-TCGA_expression[TCGA_expression[,3] %in% DNARepair$gene, ]
+
+# #Output
+# write.table(DNArepair_expression, file="DNARepair_expression.txt", sep="\t", row.names=F)
+```
+
+
+##LOAD DATA 
+```{r}
+##Load data linking genes and DNA repair mechanisms
+DNARepairMechanisms <- read.delim(paste0(BASE,"/input/DNARepairMechanisms.txt"), sep="\t", head=T)
+
+##Load TCGA CIN signature activities
+TCGA_signatures<-readRDS(paste0(BASE,"/input/Signature_Compendium_v5_Cosine-0.74_Activities_THRESH95_NAMESAPRIL21.rds"))
+
+##Load TCGA expression of genes involved in DNA repair
+# The input matrix includes only expression data of DNA Repair genes from COSMIC. This file is too large for github --> please contact us if needed
+# The matrix includes z-scores of all samples (rows) for all genes (columns)
+TCGA_repairexpression <- read.delim(paste0(BASE,"/input/DNARepair_expression.txt"), head=T) #Only expression data of DNA Repair genes from COSMIC
+TCGA_repairexpression <- acast(TCGA_repairexpression, SAMPLE_NAME~GENE_NAME, value.var="Z_SCORE")
+
+#Match samples with CIN signatures & gene expression data
+#Use 12 digit code of TCGA samples
+rownames(TCGA_signatures)<-substr(row.names(TCGA_signatures),1,12)
+rownames(TCGA_repairexpression) <- substr(row.names(TCGA_repairexpression),1,12)
+TCGA_repairexpression_sign <- TCGA_repairexpression[rownames(TCGA_repairexpression) %in% rownames(TCGA_signatures),]
+TCGA_signatures_exp <- TCGA_signatures[match(rownames(TCGA_repairexpression_sign),rownames(TCGA_signatures)),]
+
+#Summary
+print("Total number of TCGA samples with signatures and gene expression data:")
+nrow(TCGA_signatures_exp)
+
+print("Total number of DNA repair genes:")
+ncol(TCGA_repairexpression_sign)
+```
+
+##CORRELATION ANALYSES BETWEEN SIGNATURES AND EXPRESSION OF DNA REPAIR GENES
+```{r}
+#Pearson correlations between CIN activities and gene expression (z.scores)
+correlations<-c()
+for(i in 1:ncol(TCGA_signatures_exp))
+{
+  print(paste0("Correlations for signature ",colnames(TCGA_signatures_exp)[i]))
+  sig_cor<-c()
+  for(j in 1:ncol(TCGA_repairexpression_sign))
+  {
+    cor<-cor.test(TCGA_repairexpression_sign[,j],TCGA_signatures_exp[,i],method="spearman",alternative="two.sided")
+    sig_cor<-rbind(sig_cor,c(colnames(TCGA_signatures_exp)[i],colnames(TCGA_repairexpression_sign)[j],
+                               cor$estimate,cor$p.value))
+  }
+  sig_cor<-data.frame(sig_cor,stringsAsFactors = F)
+  sig_cor<-cbind(sig_cor,q.value=p.adjust(sig_cor[,4],method="BH"))
+  correlations<-rbind(correlations,sig_cor)
+}
+
+colnames(correlations) <- c("signature","gene","rho","p.value","q.value")
+correlations <- data.frame(correlations,stringsAsFactors = F)
+correlations <- correlations[order(correlations$signature,correlations$q.value),]
+correlations_filt<-correlations[correlations$q.value<0.05,]
+
+#Save
+write.table(correlations, paste0(OUTPUT,"/Correlations_SignExpression.txt"),sep="\t", row.names=F)
+
+#Summary
+print("Number of significant correlations:")
+table(correlations_filt$signature)
+```
+
+
+##CORRELATION ANALYSES BETWEEN IHR AND NON-IHR SIGNATURES AND EXPRESSION OF DNA REPAIR GENES
+```{r}
+#Select IHR signatures
+signatures <- as.data.frame(TCGA_signatures_exp[,c(2,3,5)])
+
+#Extract Non-IHR exposures
+signatures$No.IHR <- 1-rowSums(signatures)
+
+#Spearson correlations
+correlations<-c()
+for(i in 1:ncol(signatures))
+{
+  print(paste0("Correlations for signature ",colnames(signatures)[i]))
+  sig_cor<-c()
+  for(j in 1:ncol(TCGA_repairexpression_sign))
+  {
+    cor<-cor.test(TCGA_repairexpression_sign[,j],signatures[,i],method="spearman",alternative = "two.sided")
+    sig_cor<-rbind(sig_cor,c(colnames(signatures)[i],colnames(TCGA_repairexpression_sign)[j],
+                               cor$estimate,cor$p.value))
+  }
+  sig_cor<-data.frame(sig_cor,stringsAsFactors = F)
+  sig_cor<-cbind(sig_cor,q.value=p.adjust(sig_cor[,4],method="BH"))
+  correlations<-rbind(correlations,sig_cor)
+}
+
+colnames(correlations) <- c("signature","gene","rho","p.value","q.value")
+correlations <- data.frame(correlations,stringsAsFactors = F)
+correlations <- correlations[order(correlations$signature,correlations$q.value),]
+correlations_filt<-correlations[correlations$q.value<0.05,]
+
+#Save
+write.table(paste0(OUTPUT,"/Correlations_SignIHRExpression.txt"),sep="\t", row.names=F)
+
+#Summary
+print("Number of significant correlations:")
+table(correlations_filt$signature)
+```
+
+###GENES DIFFERENTIALY EXPRESSED IHR VS NON-IHR
+```{r}
+#Sign data scaled
+mPCAWGScaled = scale(TCGA_signatures_exp)
+dfPS <-data.frame(mPCAWGScaled[,c("CX2", "CX3", "CX5")])
+dfPS$Class = "NO.IHR"
+dfPS$Class[ dfPS$CX2 > 1.25 & dfPS$CX2 > dfPS$CX3 & dfPS$CX2 > dfPS$CX5 ] = "IHR"
+dfPS$Class[ dfPS$CX3 > 1.25 & dfPS$CX3 > dfPS$CX2 & dfPS$CX3 > dfPS$CX5 ] = "IHR"
+dfPS$Class[ dfPS$CX5 > 1.25 & dfPS$CX5 > dfPS$CX2 & dfPS$CX5 > dfPS$CX3 ] = "IHR"
+dfPS$SAMPLE_NAME <- rownames(TCGA_signatures_exp)
+
+#Link genes with DNA repair pathway --> too large to be included
+geneset_expression <- read.delim(paste0(BASE,"/input/DNARepair_expression.txt"), head=T)
+geneset_expression$SAMPLE_NAME <- substr(geneset_expression$SAMPLE_NAME,1,12)
+geneset_expression <- geneset_expression[geneset_expression$SAMPLE_NAME %in% dfPS$SAMPLE_NAME, ]
+
+#Join gene expression and signatures activities
+geneset_expression <- left_join(geneset_expression, dfPS, by="SAMPLE_NAME")
+geneset_expression <- geneset_expression[!is.na(geneset_expression$Class),]
+
+genes <- unique(geneset_expression$GENE_NAME)
+i=1
+diffgenes <- c()
+for (i in 1:length(genes)){
+  gene <- genes[i]
+  dat <- geneset_expression[geneset_expression$GENE_NAME %in% gene, ]
+  ttest <- t.test(Z_SCORE~Class, dat, alternative="two.sided")
+  res <-cbind(gene,ttest$p.value)
+  diffgenes <- rbind(diffgenes, res)
+}
+diffgenes<-data.frame(diffgenes,stringsAsFactors = F)
+colnames(diffgenes)[2]<-c("pvalue")
+diffgenes$pvalue <- as.numeric(diffgenes$pvalue)
+
+#Gene expressed significantly different between IHR and Non-IHR 
+diffgenes_IHR <- diffgenes[diffgenes$pvalue<0.01, ]
+
+```
+
+
+###VOLCANO PLOTS --> NER PATHWAY
+```{r}
+correlations <- read.delim(paste0(OUTPUT,"/Correlations_SignIHRExpression.txt"), sep="\t", head=T)
+correlations$rho <- as.numeric(correlations$rho)
+
+#select only genes differentialy expressed between IHR and Non-IHR samples
+correlations <- correlations[correlations$gene %in% diffgenes_IHR$gene,]
+
+##Boilerplate for basic graphic settings
+theme_set(theme_tufte(base_size = 6, base_family = "ArialMT"))
+theme_update(text = element_text(size = 6),
+             axis.text = element_text(size = 6),
+             axis.line = element_line(size = 0.5), 
+             axis.ticks = element_line(size = 0.5),
+             axis.ticks.length = unit(.1, "cm"))
+
+#Axis limits
+ymax=max(correlations$rho)
+ymin=min(correlations$rho)
+xmax=max(-log10(correlations$q.value))
+
+#Genes of NER pathway
+path <- "NER"
+genes  <- DNARepairMechanisms$gene[DNARepairMechanisms$DNARepairMechanism %in% path]
+
+cor    <- correlations[correlations$gene %in% genes,]
+cor    <- mutate(cor, significant=ifelse(abs(cor$rho)<0.1, "No significant", 
+                                           ifelse(abs(cor$rho)>0.1 & cor$rho>0, "Positive",
+                                                  "Negative")))
+p1 <- ggplot(cor[cor$signature=="CX2",], aes(x=as.numeric(rho), y=-log10(q.value), label = gene)) +      geom_point(aes(fill=significant, color=significant), show.legend=F, size=1)+
+    geom_text_repel(aes(label = ifelse(rho < -0.15, gene, "")), size=1.8, max.overlaps = Inf)+
+    coord_capped_cart(left = "both", bottom = "both") +
+    scale_color_manual(values=c("Positive"="palegreen1","Negative"="red1","No significant"="grey50"),
+                     labels = c("Positive","Negative","No significant"))+
+    labs(title="CX2", x="rho", y = "-log10(q.value)")+
+    ylim(0,xmax)+
+    xlim(ymin, ymax)+
+    theme(axis.title.y = element_text(margin = margin(r=0.1, unit = "cm"),size=5))+
+    theme(axis.title.x = element_text(margin = margin(t=0.1, unit = "cm"),size=5))+
+    theme(title = element_text(face="bold", colour = "black", size = 6))+
+    theme(plot.margin = margin(t = 0.2, r = 0.1, b = 1, l = 0.1, unit = "cm"))
+ 
+p2 <- ggplot(cor[cor$signature=="CX5",], aes(x=as.numeric(rho), y=-log10(q.value), label = gene)) +      geom_point(aes(fill=significant, color=significant), show.legend=F, size=1)+
+    geom_text_repel(aes(label = ifelse(rho < -0.15, gene, "")), size=1.8, max.overlaps = Inf)+
+    coord_capped_cart(left = "both", bottom = "both") +
+    scale_color_manual(values=c("Positive"="palegreen1","Negative"="red1","No significant"="grey50"),
+                     labels = c("Positive","Negative","No significant"))+
+    labs(title="CX5", x="rho", y = "")+
+    ylim(0,xmax)+
+    xlim(ymin, ymax)+
+    theme(axis.title.y = element_text(margin = margin(r=0.1, unit = "cm"),size=5))+
+    theme(axis.title.x = element_text(margin = margin(t=0.1, unit = "cm"),size=5))+
+    theme(title = element_text(face="bold", colour = "black", size = 6))+
+    theme(plot.margin = margin(t = 0.2, r = 0.1, b = 1, l = 0.1, unit = "cm"))
+ 
+p3 <- ggplot(cor[cor$signature=="CX3",], aes(x=as.numeric(rho), y=-log10(q.value), label = gene)) +      geom_point(aes(fill=significant, color=significant), show.legend=F, size=1)+
+    geom_text_repel(aes(label = ifelse(rho < -0.15, gene, "")), size=1.8, max.overlaps = Inf)+
+    coord_capped_cart(left = "both", bottom = "both") +
+    scale_color_manual(values=c("Positive"="palegreen1","Negative"="red1","No significant"="grey50"),
+                     labels = c("Positive","Negative","No significant"))+
+    labs(title="CX3", x="rho", y = "")+
+    ylim(0,xmax)+
+    xlim(ymin, ymax)+
+    theme(axis.title.y = element_text(margin = margin(r=0.1, unit = "cm"),size=5))+
+    theme(axis.title.x = element_text(margin = margin(t=0.1, unit = "cm"),size=5))+
+    theme(title = element_text(face="bold", colour = "black", size = 6))+
+    theme(plot.margin = margin(t = 0.2, r = 0.1, b = 1, l = 0.1, unit = "cm"))
+
+pp <- ggarrange(p1, p2, p3, align = "h", ncol = 3, nrow = 1)
+ggsave(paste0(OUTPUT,"/EDF_9c_VolcanoPlot_NER.svg"), pp, width = 60, height = 45, units = "mm")
+
+# #pdf
+# pdf(paste0(OUTPUT,"/"EDF_9c_VolcanoPlots_NER.pdf"), width = 120/25.4, height = 80/25.4)
+# pp
+# dev.off()
+```

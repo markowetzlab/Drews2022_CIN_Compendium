@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' class='svglite' width='453.54pt' height='14.17pt' viewBox='0 0 453.54 14.17'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+  ]]></style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: none;'/>
+<defs>
+  <clipPath id='cpMC4wMHw0NTMuNTR8MC4wMHwxNC4xNw=='>
+    <rect x='0.00' y='0.00' width='453.54' height='14.17' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHw0NTMuNTR8MC4wMHwxNC4xNw==)'>
+</g>
+<defs>
+  <clipPath id='cpMTIuOTZ8NDUwLjU1fDIuOTl8NS41Mg=='>
+    <rect x='12.96' y='2.99' width='437.60' height='2.53' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMTIuOTZ8NDUwLjU1fDIuOTl8NS41Mg==)'>
+<image width='437.60' height='2.53' x='12.96' y='2.99' preserveAspectRatio='none' xlink:href='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAADj8AAAAVCAYAAACjHh2JAAACiElEQVR4nO3bP0tVcRzH8V8FgmFrlpc0r38wFK6GgrZEhBi4Obn0DGwyVHwIjaEOIg01Nje0R1M0h4MPwSdgoZuLDto9536/9/J6jYdzfr/PduHC+87Rqwfnpcv8PP0bPYEetPlmJXoCAJQ/+9+jJxBk9V5f22ecffpSwRKox9633f/6bvb5SMVLett4ayl6AlCxoclW9ARoy/0fhx27a/nrr47dxVWz843oCbVpLg7f+N1W83WNS+D2Xm59iJ4ApZRSphbmoieQ3Ojco+gJcGuLE0+iJ5RSSjnYOomeAFCr/smp6AlXDMz01v+202PN6Alwaa0xGD2h62y+O46eQJuGRvL91kEWC2Ndl7pQs+nGv+gJHfV7/e2N3915v33t84cvnla0hm7zeeNjyL3zj59Vfubdyk8EAAAAAAAAAAAAAAAAAGiD+BEAAAAAAAAAAAAAAAAASEX8CAAAAAAAAAAAAAAAAACkIn4EAAAAAAAAAAAAAAAAAFIRPwIAAAAAAAAAAAAAAAAAqYgfAQAAAAAAAAAAAAAAAIBUxI8AAAAAAAAAAAAAAAAAQCriRwAAAAAAAAAAAAAAAAAgFfEjAAAAAAAAAAAAAAAAAJCK+BEAAAAAAAAAAAAAAAAASEX8CAAAAAAAAAAAAAAAAACkIn4EAAAAAAAAAAAAAAAAAFIRPwIAAAAAAAAAAAAAAAAAqYgfAQAAAAAAAAAAAAAAAIBUxI8AAAAAAAAAAAAAAAAAQCriRwAAAAAAAAAAAAAAAAAgFfEjAAAAAAAAAAAAAAAAAJCK+BEAAAAAAAAAAAAAAAAASEX8CAAAAAAAAAAAAAAAAACkIn4EAAAAAAAAAAAAAAAAAFK5AFdHItcUJppuAAAAAElFTkSuQmCC'/>
+</g>
+<g clip-path='url(#cpMC4wMHw0NTMuNTR8MC4wMHwxNC4xNw==)'>
+<polyline points='12.96,5.52 12.96,2.99 ' style='stroke-width: 1.07; stroke-linecap: butt;' />
+<polyline points='12.96,5.52 450.55,5.52 ' style='stroke-width: 1.07; stroke-linecap: butt;' />
+<text transform='translate(7.29,4.26) rotate(-90)' text-anchor='middle' style='font-size: 6.00px; font-family: Helvetica;' textLength='19.34px' lengthAdjust='spacingAndGlyphs'>Cancer</text>
+</g>
+</svg>

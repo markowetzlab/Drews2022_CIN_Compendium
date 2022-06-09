@@ -1,0 +1,326 @@
+---
+title: "Testing stability of definitions via introducing noise"
+output: 
+  pdf_document:
+    number_sections: true
+---
+
+```{r setup, message=FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+
+# LIBRARIES
+library(data.table)
+library(ggplot2)
+library(igraph)
+library(qgraph)
+library(lsa)
+library(tidyr)
+library(dplyr)
+library(reshape2)
+library(ggthemes)
+library(lemon)
+library(patchwork)
+library(Cairo)
+library(here)
+
+
+# PATHWAYS
+BASE=here()
+```
+
+## 1. CREATE INPUT MATRICES WITH NOISE
+```{r, eval=F}
+## PLEASE NOTE THAT THIS IS JUST THE CODE FOR INTRODUCING NOISE TO INPUT MATRICES BUT IT IS NOT COMPILED HERE.
+## OUTPUT FILE IS TOO LARGE FOR GITHUB 
+## THE OTPUT FILES IS THEN USED TO GENERATE THE DEFINITION MATRICES AS DESCRIBED IN STEP 2 AND 3
+
+NOISE="path_to_section_5.1"
+## PATHWAYS TO DATA
+INPATH=file.path(NOISE, "input")
+OUTPATH=file.path(NOISE, "output")
+NAMEID="_fulldataset_100sims_10pGaussian_10pSamplePoisson"
+
+################################################################################
+## Step 0: Load data and functions
+source(file.path(NOISE, "MC_simulation_activities/Sig_activity_with_noise_functions.R"))
+dir.create(INPATH, recursive = TRUE, showWarnings = FALSE)
+lOriECNF = readRDS(ORIECNF)
+allModels = readRDS(INPUTMODELS)
+W = readRDS(SIGNATUREFILE)
+dtOri = data.table(melt(readRDS(ACTIVITIES)))
+
+
+## Step 1: Simulate feature distributions with noise
+DATA="path_to_data"
+ORIECNF=file.path(DATA, "1_tcga_filtered_ecnf.rds") #This file can be found in the Signature Discovery repo
+NUMSIMS=100
+print("Start simulating data...")
+lSimulation = addNoiseToFeatures(lOriECNF, allFeatures = c("changepoint", "segsize",
+                                                            "bpchrarm", "osCN", "bp10MB"), 
+                                 SDPROP = 20, FINALWIDTH = 0.1, RANGECNAS = 0.1, NUMSIMS = NUMSIMS)
+
+## Step 2: Derive SxC matrices
+INPUTMODELS=file.path(DATA, "Mixmodels_merged_components.rds") #This file can be found in the Signature Discovery repo
+print("Start deriving SxC matrices data...")
+lMatrices = deriveSxCMatrices(lSimulation, allModels = allModels, 
+                              allFeatures = names(allModels), UNINFPRIOR = TRUE)
+saveRDS(lMatrices, file.path(OUTPATH, paste0("1_SxC_Matrices", NAMEID, ".rds")))
+```
+
+## 2. DERIVE SIGNATURES FROM INPUT MATRICES
+```{r}
+## Performed in the cluster
+## Use "1_Signature_derivation_from_simulations.sh" script
+```
+
+## 3. DECIDE BEST SOLUTION FROM EACH SIMULATION
+```{r}
+## Use "2_Decide_signature_solution.sh" script --> this script can be found in the 'Martingales/cnsigs2_revisions' repository
+# Select solutions with K=10 which each signature is explaining a cluster. You need to manually review the output from testSolution(dtScores$Sample)
+```
+
+## 4. DECIDE BEST SOLUTION FROM EACH SIMULATION
+After running bayesNMF and select the best solution according to the Kullback-Leibler divergence, we run this script for exploring the stability of signature definitions. 
+First, we matched noisy signatures to the original definitions by cosine similarity. 
+```{r}
+## PATHS
+PATHTOFILES=paste0(BASE, "/solutions")
+OUTPUTDIR=paste0(BASE,"/noisy_definitions")
+dir.create(OUTPUTDIR, showWarnings = FALSE, recursive = TRUE)
+
+## DATA
+# From whole dataset
+TCGA_definitions <- as.data.frame(t(readRDS(paste0(BASE,"/input/Signature_Compendium_v5_Cosine-0.74_Signatures_NAMESAPRIL21.rds"))))
+Sigs <- c("CX1","CX2","CX3","CX4","CX5","CX6","CX7","CX8","CX11","CX13")
+TCGA_definitions <- TCGA_definitions[,colnames(TCGA_definitions)%in%Sigs]
+components=row.names(TCGA_definitions)
+
+thisK=10
+RealSignatures <- TCGA_definitions
+
+###########################################################################################
+# Get paths of signature definition matrices
+allSigFiles <- unlist(lapply(PATHTOFILES, function(path){
+    file <- list.files(path, pattern="6_Signatures.*\\.txt",full.names = TRUE)}))
+numM <- length(allSigFiles)
+
+# Load signature definition matrices
+lSimDefinitions <- lapply(allSigFiles, function(file){
+    def <- read.table(file, sep="\t", header = T, check.names=FALSE)
+    row.names(def) <- def[,1]
+    def <- def[,-1]
+    def <- apply(def,2,function(x){x/sum(x)}) #normalization
+})
+names(lSimDefinitions)<-1:numM
+
+# Match signatures derived from original input matrix with signatures extracted from noisy matrices
+lMatchDefinitions <- lapply(Sigs, function(thisSig){
+    defsig <- RealSignatures[,thisSig]
+    cos = lapply(1:length(lSimDefinitions), function(i) {cosine(defsig, lSimDefinitions[[i]])})
+    # ind = lapply(1:length(cos), function(i) {which(cos[[i]]>0.85)})
+    ind = lapply(1:length(cos), function(i) {which.max(cos[[i]])})
+    max.cos = lapply(1:length(cos), function(i) {
+        m = cos[[i]]
+        m = m[ind[[i]]]
+        m = cbind(matrix=i,max.cos=m)
+    })
+    match <- as.data.frame(do.call(rbind, max.cos))
+    rownames(match)<-NULL
+    return(match)
+})
+names(lMatchDefinitions)<-Sigs
+
+lMatchDefinitions <- as.data.frame(data.table::rbindlist(lMatchDefinitions, idcol=TRUE))
+colnames(lMatchDefinitions)[1] <- "Sigs"
+lMatchDefinitions$match <- lMatchDefinitions$max.cos>=0.85
+lMatchDefinitions$match <- factor(lMatchDefinitions$match,levels=c("TRUE","FALSE"))
+
+# Get frequency of matching
+match_frequencies <- lMatchDefinitions %>%
+    group_by(Sigs, match) %>% 
+    summarise(n=n()) %>% 
+    complete(Sigs, match, fill = list(n = 0))
+match_frequencies$freq <- round((match_frequencies$n/numM)*100,2)
+match_frequencies <- as.data.frame(acast(match_frequencies, Sigs~match, value.var = "freq"))
+
+# Get cosine of matching
+match_similarities <- plyr::ddply(lMatchDefinitions, c("Sigs","match"), 
+                            summarise, max=max(max.cos), mean=mean(max.cos), sd=sd(max.cos))
+match_similarities <- match_similarities %>% 
+    complete(Sigs, match)
+match_similarities$Sigs <- factor(match_similarities$Sigs, levels=Sigs)
+
+# Plot
+# Discretize cosine values
+breaks = c(0, 0.65, 0.75, 0.85, 0.9, 1)
+# Names of categories
+tags = c("<0.65", "<0.75", "<0.85", "<0.9", ">0.9")
+# Split cosine into categories
+match_similarities$cat = cut(match_similarities$max, 
+                             breaks = breaks, include.lowest=TRUE, right=FALSE, labels = tags)
+# Colors 
+cols = c("<0.65" = "#fffffc", "<0.75" = "#ffffcc", "<0.85" =  "#fed976", "<0.9" = "#fd8d3c", ">0.9" = "#e31a1c")
+
+# Save
+pdf(file = paste0(OUTPUTDIR, "/SuppFig_42a_MatchesCNSigs&NoisySimilarity_K", thisK, "_200runs_", numM,"matrices.pdf"), width = 6, height = 8)
+p = ggplot(match_similarities, aes(y = Sigs, x = match, fill = cat)) + 
+    geom_tile(aes(width = 0.94, height = 0.94)) + 
+    theme_tufte(base_family = "", base_size = 16) + 
+    theme(legend.position = "right", legend.title = element_text(size=12), 
+          legend.text = element_text(size=10), axis.line = element_line(size = 0.5), 
+          axis.ticks = element_line(size = 0.5), axis.ticks.length = unit(.1, "cm"), 
+          plot.margin = unit(c(0, 0, 0, 0), "null"), aspect.ratio = 10/2) + 
+    labs(y = "Pan-cancer signatures", x = "Positive match") +
+    #labs(y = "Signatures from original matrix", x = "Positive match") + 
+    scale_x_discrete(position = "top", guide = guide_axis(angle = 90)) + labs(fill = "Max cosine\nsimilarity") + 
+    scale_fill_manual(values = cols) + guides(fill = guide_legend(nrow = 5)) +
+    coord_capped_cart(top = "both", left = "both")
+p
+dev.off()
+```
+
+Then, we explored the variability of signature definitions across the 100 simulations. We visualized the impact of adding noise on signature definitions by adding error bars to the barplot representing original signatures.
+```{r}
+# Get definitions of matched signatures
+lNoisyDefinitions <- lapply(Sigs, function(thisSig){
+    # Definition from the original matrix
+    defsig <- RealSignatures[,thisSig]
+    # Found noisy signatures that match
+    cos = lapply(1:length(lSimDefinitions), function(i) {cosine(defsig, lSimDefinitions[[i]])})
+    ind = lapply(1:length(cos), function(i) {which.max(cos[[i]])})
+    max.cos = lapply(1:length(cos), function(i) {
+        m = cos[[i]]
+        m = m[ind[[i]]]
+        m = cbind(matrix=i,max.cos=m,sig=names(m))
+    })
+    match <- as.data.frame(do.call(rbind, max.cos))
+    rownames(match)<-NULL
+    
+    # Get matrix with definitions from simulated matrices
+    defs <- lapply(1:nrow(match), function(i) {
+        col=NULL
+        def=NULL
+        if(match$max.cos[i]>=0.85){
+            dat <- lSimDefinitions[[i]]
+            col <- match[i,3]
+            def <- dat[,which(colnames(dat)%in%col)]
+        }
+        return(def)
+    })
+    SigDefinition <- do.call(cbind, defs)
+    return(SigDefinition)
+})
+names(lNoisyDefinitions)<-Sigs
+
+#### Plot signature definitions in barplot style ####
+theme_set(theme_tufte(base_size = 6, base_family = "ArialMT"))
+theme_update(text = element_text(size = 6),
+             axis.text = element_text(size = 6),
+             axis.line = element_line(size = 0.5), 
+             axis.ticks = element_line(size = 0.5),
+             axis.ticks.length = unit(.1, "cm"))
+
+# Load and prepare original definitions --> bars of the plot
+mDefs = t(RealSignatures)
+
+# Normalize Signature Definitions per signature and then per feature
+FEATS=c("segsize", "changepoint", "bp10MB", "bpchrarm", "osCN")
+NUMCOMP = ncol(mDefs)
+
+# First normalize per signature (to remove the comparable signature)
+theseNewSigs <- apply(mDefs, 1, function(thisSig) {
+    lSig <- sapply(FEATS, function(thisFeat) {
+        theseVals = thisSig[grepl(thisFeat, names(thisSig))]
+        theseNew = theseVals/sum(theseVals)
+        # Catch edge case with only zeros and no weights (produce NaN)
+        if(is.nan(sum(theseNew))) { 
+            altNew = rep(0, length(theseNew))
+            names(altNew) = names(theseNew)
+            theseNew = altNew
+        }
+        # Scale by numbers of components => Final sum of vector should be five (for five features)
+        theseNew <- theseNew*(length(theseNew)/NUMCOMP)
+    })
+    vSig = unlist(lSig)
+    return(vSig)
+})
+mDefs <- t(theseNewSigs)
+colnames(mDefs) <- sapply(strsplit(colnames(mDefs), "\\."), function(x) x[[2]])
+
+# Load and prepare noisy definitions --> error bars of the plot
+# Calculate the standard error of noisy definitions
+lVariabilityDefinitions <- lapply(Sigs, function(thisSig) {
+    defs <- t(lNoisyDefinitions[[thisSig]])
+    
+    # Normalization
+    nDef <- lapply(1:nrow(defs), function(thisM){
+        def <- defs[thisM,]
+        lSig <- sapply(FEATS, function(thisFeat) {
+            theseVals = def[grepl(thisFeat, names(def))]
+            theseNew = theseVals/sum(theseVals)
+            # Catch edge case with only zeros and no weights (produce NaN)
+            if(is.nan(sum(theseNew))) { 
+                altNew = rep(0, length(theseNew))
+                names(altNew) = names(theseNew)
+                theseNew = altNew
+            }
+            # Scale by numbers of components => Final sum of vector should be five (for five features)
+            theseNew <- theseNew*(length(theseNew)/NUMCOMP)
+        })
+        vSig = unlist(lSig)
+        return(vSig)
+    })
+    nDef <- do.call(cbind, nDef)
+    row.names(nDef) = sapply(strsplit(row.names(nDef), "\\."), function(x) x[[2]])
+    
+    # Statistics
+    mean <- rowMeans(nDef)
+    median <- apply(nDef, 1, median)
+    sd <- apply(nDef, 1, sd)
+    var <- apply(nDef, 1, var)
+    se <- sd/sqrt(ncol(nDef))
+    nVar <- as.data.frame(cbind(mean=mean, median=median, sd=sd, se=se, var=var))
+    return(nVar)
+})
+names(lVariabilityDefinitions)<-Sigs
+
+
+# Prepare data for plotting and produce the figure
+# Melt Definitions to data.frame
+dtDefs <- data.table(melt(mDefs))
+
+dtDefs$Col <- gsub('[[:digit:]]+', '', dtDefs$Var2 )
+dtDefs$Col <- factor(dtDefs$Col, levels = c("segsize", "changepoint", "bpMB", "bpchrarm", "osCN"),
+                    labels = c("Segment size", "Change point", "Breakpoints per 10MB", 
+                               "Breakpoints per arm", "Lengths of chains of osc. CN"))
+
+# Get standard errors for error bars and melt to data.frame
+dtNDefs <- as.data.frame(sapply(lVariabilityDefinitions, `[[`, "se"))
+rownames(dtNDefs) <- colnames(mDefs)
+dtNDefs <- data.table(melt(t(dtNDefs)))
+colnames(dtNDefs)[3] <- "se"
+
+# Join standard errors
+dtDefs <- left_join(dtDefs, dtNDefs, by=c("Var1", "Var2"))
+dtDefs$ymax <- dtDefs$value+dtDefs$se
+dtDefs$ymin <- dtDefs$value-dtDefs$se
+dtDefs$ymin[dtDefs$ymin<0]<-0
+
+p1 = ggplot(dtDefs, aes(x=Var2, y=value, fill=Col)) + 
+    geom_col() + 
+    geom_linerange(aes(ymin=ymin, ymax=ymax), colour="black", alpha=0.8, size=0.5) +
+    facet_wrap(. ~ Var1, ncol = 2) +
+    scale_fill_manual(values = c("#ffbe0b", "#fb5607", "#ff006e", "#8338ec", "#3a86ff")) +
+    scale_x_discrete(guide = guide_axis(angle = 90)) + 
+    labs(x = "Feature components", y = "Weights", fill = "Feature") +
+    theme(axis.ticks.y = element_blank(), axis.text.y = element_blank(), legend.position = "bottom") + 
+    coord_capped_cart(left = "both", bottom = "both") +
+    guides(fill = guide_legend(nrow = 1, byrow = TRUE))
+
+pdf(file = paste0(OUTPUTDIR, "/SuppFig_42b_NoisyDefinitions_Barplot_K", thisK, "_200runs_", numM,"matrices.pdf"), height = 220/25.4, width = 180/25.4)
+p1
+dev.off()
+```
+

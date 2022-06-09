@@ -1,0 +1,639 @@
+---
+title: "EDF 9: Deep dive into three impaired HR signatures"
+author: "Drews RM et al."
+date: "11 April 2021"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+params:
+  args: args
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+rm(list=ls(all=TRUE))
+
+#### Currently might crash during knitting because of this.path()
+#### If so, please specify BASE manually pointing to the folder
+#### of this script. Apologies.
+
+suppressPackageStartupMessages({
+  # Standard packages used throughout repo
+  library(this.path)
+  library(data.table)
+  library(reshape2)
+  library(ggplot2)
+  library(ggthemes)
+  library(patchwork)
+  library(hexbin)
+  library(RColorBrewer)
+  library(lemon)
+  library(ggrastr)
+  ## For testing all combinations of t-tests
+  library(tidyverse)
+  library(rstatix)
+  # # Easier for large heatmaps
+  # library(ComplexHeatmap)
+  # library(circlize)
+})
+
+theme_set(theme_tufte(base_size = 6, base_family = "ArialMT"))
+theme_update(text = element_text(size = 6),
+             axis.text = element_text(size = 6),
+             axis.line = element_line(size = 0.5), 
+             axis.ticks = element_line(size = 0.5),
+             axis.ticks.length = unit(.1, "cm"))
+
+
+## Basics
+BASE=dirname(this.path())
+OUTPLOTS=file.path(BASE, "output")
+OUTRESULTS=file.path(BASE, "output")
+
+## Signature files
+EXP=file.path(BASE, "input/Signature_Compendium_v5_Cosine-0.74_Activities_THRESH95_NAMESAPRIL21.rds")
+META=file.path(BASE, "input/Metadata_TCGA_ASCAT_penalty70.rds")
+COLS=file.path(BASE, "input/TCGA_colour_scheme.txt")
+
+## Mutation files
+# For SNVs, amplifications, and deletions
+MUTS=file.path(BASE, "input/Mutations_SNVs_AMPs_DELs_in_TCGA.rds")
+# For LOH
+LOHSTATE=file.path(BASE, "input/Somatic_LOH_TCGA.rds")
+
+## TCGA HRD sets
+MAXWELL=file.path(BASE, "input/Maxwell2017_S1_BRCAGermline.csv")
+MAXWELLLOH=file.path(BASE, "input/Maxwell2017_S2_LocusLOH.csv")
+WANG=file.path(BASE, "input/Wang2017_FBI_and_BRCA12_TCGA-OV.csv")
+RADMETH=file.path(BASE, "input/TCGA2011_BRCA1_RAD51C_Calls_20100718.txt")
+
+## Use also consensus TCGA mutation calls and our LOH calls to classify samples?
+ADDOTHERSOURCES=TRUE
+
+## HRD scores
+# From Knijnenburg et al. 2018, downloaded and preprocessed by Jordan Griffin (Gerke Lab, github repo: TCGAhrd)
+HRDSCORES=file.path(BASE, "input/Knijnenburg2018_HRD_Scores_TCGA_GerkeLabGithub.txt")
+
+source(file.path(BASE, "EDF_9_A_D_Impaired_HR_Three_Signatures_functions.R"))
+
+## For additional analyses on TNBC
+LEHMANTNBC=file.path(BASE, "input/Lehmann2016_TCGA_TNBC_S3.txt")
+
+
+## Prepare colours
+dfCols=read.table(COLS, header = FALSE, comment.char = "|")
+vCols = as.character(dfCols$V2); names(vCols) = dfCols$V1
+
+```
+
+# Figure 3: Features associated with CIN signatures 2, 3 and 5
+
+```{r load data}
+
+# Load datasets
+exp=readRDS(EXP)
+meta=readRDS(META)
+muts = readRDS(MUTS)
+dtMeth=fread(RADMETH)
+lohState=readRDS(LOHSTATE)
+
+# Prepare exposures
+dtExp = data.table(melt(exp))
+colnames(dtExp) = c("Sample", "Signature", "Exposure")
+dtExp$Cancer = meta$cancer_type[ match(dtExp$Sample, meta$name) ]
+
+# Load BRCA files
+maxwell=fread(MAXWELL)
+maxwellLOH=fread(MAXWELLLOH)
+# To assess second allele we need LOH and DEL data. So LOH from cnState and approved DELs from muts
+# Will have a bit too many entries because it's cohort-wide LOH.
+delLoh = rbind( lohState, muts[ muts$consequence == "DEL", ])
+
+wangBrca = prepareWangDataset(WANG, delLoh, sampleNames = substr(unique(dtExp$Sample),1,12))
+
+```
+
+This will print how many germline BRCA1/2 are there in the data.
+
+```{r simple numbers for paper}
+
+### Count samples in Wang and Maxwell for paper
+## How many in each
+dtMW = maxwell[ maxwell$Group == "TCGA", ]
+table(dtMW$`Tumor Site`)
+
+# Wang et al.
+wang = fread(WANG)
+dtWANG = wang[ wang$BRCA.status != "WT", ]
+dtWANG$origin = "Somatic"
+dtWANG$origin[ grepl("Germline", dtWANG$BRCA.status) ] = "Germline"
+dtWANG$Gene = sapply(strsplit(dtWANG$BRCA.status, "\\."), function(x) x[[1]])
+nrow(dtWANG)
+table(dtWANG$origin)
+
+# How many in both and in how many do we find CIN?
+bothSources = unique(sort(c(dtMW$`Tumor ID`, dtWANG$Case_ID)))
+length(bothSources)
+sum(bothSources %in% substr(dtExp$Sample,1,12))
+
+# Proportion of LOH
+mwLOHSamples = maxwellLOH$`Tumor ID`[ maxwellLOH$`VarScan Tumor p-value` < 0.05 & maxwellLOH$Concordant == "Yes" ]
+length(unique(sort(c(mwLOHSamples, wangBrca$Case_ID[ wangBrca$LOH == "LOH" ]))))
+
+```
+
+\newpage
+
+## Assign BRCA1/2 status to TCGA samples
+
+
+```{r prepare data from papers gBRCA1 vs gBRCA2}
+
+#### Add germline BRCA1/2 of OV and BRCA to dtExp from Maxwell et al.
+maxwellBrca = maxwell[ maxwell$Group == "TCGA", ]
+maxwellBrca = maxwellBrca[ maxwellBrca$`Tumor ID` %in% substr(dtExp$Sample,1,12), ]
+dtExp$Maxwell = substr(dtExp$Sample,1,12) %in% maxwellBrca$`Tumor ID`
+
+## Maxwell also has data on locus-specific LOH for BRCA1 and 2.
+mwLOHSamples = maxwellLOH$`Tumor ID`[ maxwellLOH$`VarScan Tumor p-value` < 0.05 &
+                                        maxwellLOH$Concordant == "Yes" ]
+dtExp$MaxwellLOH = substr(dtExp$Sample,1,12) %in% mwLOHSamples
+
+## Add gene
+maxwellBrca$Gene = substr(maxwellBrca$Mutation,1,5)
+dtExp$MaxwellGene = maxwellBrca$Gene[ match(substr(dtExp$Sample,1,12), maxwellBrca$`Tumor ID`) ]
+
+
+## Stratify patients into background, background-OVBRCA, brca-noLOH, brca-LOH
+dtExp$Status = "WT BRCA1/2 (TCGA)"
+
+# Gene + LOH
+dtExp$Status[ dtExp$Maxwell & dtExp$MaxwellLOH & dtExp$MaxwellGene == "BRCA1" ] = "gBRCA1 plus LOH"
+dtExp$Status[ dtExp$Maxwell & dtExp$MaxwellLOH & dtExp$MaxwellGene == "BRCA2" ] = "gBRCA2 plus LOH"
+
+# Gene - LOH
+dtExp$Status[ dtExp$Maxwell & ! dtExp$MaxwellLOH & dtExp$MaxwellGene == "BRCA1" ] = "gBRCA1 (no LOH)"
+dtExp$Status[ dtExp$Maxwell & ! dtExp$MaxwellLOH & dtExp$MaxwellGene == "BRCA2" ] = "gBRCA2 (no LOH)"
+
+# All other OV/BRCA samples become WT for OV/BRCA cancer types (for plotting)
+dtExp$Status[ ! dtExp$Maxwell & ! dtExp$MaxwellLOH & grepl(c("OV|BRCA"), dtExp$Cancer) ] = "WT BRCA1/2 (OV & BRCA)"
+
+
+
+### Add gBRCA1/2 and sBRCA1/2 information from Wang et al. 2017
+# Add gBRCA1 + LOH
+sampsOfInterestBRCA1 = wangBrca$Case_ID[ wangBrca$origin == "Germline" & wangBrca$LOH == "LOH" &
+                                           wangBrca$Gene == "BRCA1" ]
+dtExp$Status[ substr(dtExp$Sample,1,12) %in% sampsOfInterestBRCA1 & 
+                grepl("WT", dtExp$Status) ] = "gBRCA1 plus LOH"
+
+# Add gBRCA2 + LOH
+sampsOfInterestBRCA2 = wangBrca$Case_ID[ wangBrca$origin == "Germline" & wangBrca$LOH == "LOH" &
+                                           wangBrca$Gene == "BRCA2" ]
+dtExp$Status[ substr(dtExp$Sample,1,12) %in% sampsOfInterestBRCA2 & 
+                grepl("WT", dtExp$Status) ] = "gBRCA2 plus LOH"
+
+# Add gBRCA1 - LOH
+sampsOfInterestBRCA1 = wangBrca$Case_ID[ wangBrca$origin == "Germline" & wangBrca$LOH == "No" &
+                                           wangBrca$Gene == "BRCA1" ]
+dtExp$Status[ substr(dtExp$Sample,1,12) %in% sampsOfInterestBRCA1 & 
+                grepl("WT", dtExp$Status) ] = "gBRCA1 (no LOH)"
+
+# Add gBRCA2 - LOH
+sampsOfInterestBRCA2 = wangBrca$Case_ID[ wangBrca$origin == "Germline" & wangBrca$LOH == "No" &
+                                           wangBrca$Gene == "BRCA2" ]
+dtExp$Status[ substr(dtExp$Sample,1,12) %in% sampsOfInterestBRCA2 & 
+                grepl("WT", dtExp$Status) ] = "gBRCA2 (no LOH)"
+
+
+
+# Add sBRCA1 + LOH
+sampsOfInterestBRCA1 = wangBrca$Case_ID[ wangBrca$origin == "Somatic" & wangBrca$LOH == "LOH" &
+                                           wangBrca$Gene == "BRCA1" ]
+dtExp$Status[ substr(dtExp$Sample,1,12) %in% sampsOfInterestBRCA1 &
+                grepl("WT", dtExp$Status) ] = "sBRCA1 plus LOH"
+
+# Add sBRCA1 + LOH
+sampsOfInterestBRCA2 = wangBrca$Case_ID[ wangBrca$origin == "Somatic" & wangBrca$LOH == "LOH" &
+                                           wangBrca$Gene == "BRCA2" ]
+dtExp$Status[ substr(dtExp$Sample,1,12) %in% sampsOfInterestBRCA2 &
+                grepl("WT", dtExp$Status) ] = "sBRCA2 plus LOH"
+
+# Add sBRCA1 - LOH (no samples)
+sampsOfInterestBRCA1 = wangBrca$Case_ID[ wangBrca$origin == "Somatic" & wangBrca$LOH == "No" &
+                                           wangBrca$Gene == "BRCA1" ]
+dtExp$Status[ substr(dtExp$Sample,1,12) %in% sampsOfInterestBRCA1 & 
+                grepl("WT", dtExp$Status) ] = "sBRCA1 (no LOH)"
+
+# Add sBRCA2 - LOH
+sampsOfInterestBRCA2 = wangBrca$Case_ID[ wangBrca$origin == "Somatic" & wangBrca$LOH == "No" &
+                                           wangBrca$Gene == "BRCA2" ]
+dtExp$Status[ substr(dtExp$Sample,1,12) %in% sampsOfInterestBRCA2 & 
+                grepl("WT", dtExp$Status) ] = "sBRCA2 (no LOH)"
+
+
+### Add RAD51C promoter methylation
+RAD51CMETH = dtMeth$V1[ dtMeth$RAD51C ]
+dtExp$Status[ grepl("WT", dtExp$Status) & dtExp$Sample %in% RAD51CMETH ] = "RAD51C Hypermethylation"
+
+
+### Add BRCA1 promoter methylation
+BRCA1METH = dtMeth$V1[ dtMeth$BRCA1 ]
+dtExp$Status[ grepl("WT", dtExp$Status) & dtExp$Sample %in% BRCA1METH ] = "BRCA1 Hypermethylation"
+
+
+
+
+### Add BRCA1/2 status in other cancer types
+## 1 - BRCA1 SNV
+sBRCASamplesBRCA1 = unique( muts$sample[ muts$gene %in% c("BRCA1") & 
+                                      ! ( muts$consequence %in% c("DEL", "AMP") ) ] )
+dtExp$Status[ grepl("WT", dtExp$Status) & 
+                ( dtExp$Sample %in% sBRCASamplesBRCA1 ) ] = "sBRCA1 (no LOH)"
+## 1 - BRCA2 SNV
+sBRCASamplesBRCA2 = unique( muts$sample[ muts$gene %in% c("BRCA2") & 
+                                      ! ( muts$consequence %in% c("DEL", "AMP") ) ] )
+dtExp$Status[ grepl("WT", dtExp$Status) & 
+                ( dtExp$Sample %in% sBRCASamplesBRCA2 ) ] = "sBRCA2 (no LOH)"
+
+## 2 - BRCA1/2 SNV + LOH
+BRCALOH = unique( delLoh$sample[ delLoh$gene %in% c("BRCA1", "BRCA2") & 
+                                       delLoh$consequence == "LOH" ] )
+## Add classification of "LOH only" later.
+## BRCA1
+dtExp$Status[ dtExp$Status == "sBRCA1 (no LOH)" & 
+                dtExp$Sample %in% BRCALOH ] = "sBRCA1 plus LOH"
+## BRCA2
+dtExp$Status[ dtExp$Status == "sBRCA2 (no LOH)" & 
+                dtExp$Sample %in% BRCALOH ] = "sBRCA2 plus LOH"
+  
+## 3 - BRCA1/2 DEL (no samples)
+BRCADEL = unique( delLoh$sample[ delLoh$gene %in% c("BRCA1", "BRCA2") & 
+                                   delLoh$consequence == "DEL" ] )
+dtExp$Status[ grepl("WT", dtExp$Status) & 
+                dtExp$Sample %in% BRCADEL ] = "Biallelic loss of BRCA1/2"
+
+### Add LOH only classification
+dtExp$Status[ grepl("WT", dtExp$Status) & dtExp$Sample %in% BRCALOH ] = "LOH in BRCA1/2"
+
+
+# ### Sort classes by CX3 (previous CS2) - needed to later change to plot labels
+# sortClasses = aggregate(Exposure ~ Status, data = dtExp[dtExp$Signature=="CX3",], median)
+# sortedMW = sortClasses$Status[ order(sortClasses$Exposure) ]
+# dtExp$Status = factor(dtExp$Status, levels = sortedMW)
+
+## Rename for plot
+dtExp$Status = factor(dtExp$Status, 
+                      levels = c("WT BRCA1/2 (TCGA)", "WT BRCA1/2 (OV & BRCA)", "LOH in BRCA1/2",
+                                 "sBRCA2 (no LOH)" , "gBRCA2 (no LOH)",  
+                                 "sBRCA2 plus LOH", "gBRCA2 plus LOH",
+                                 "sBRCA1 (no LOH)", "gBRCA1 (no LOH)", 
+                                 "sBRCA1 plus LOH", "gBRCA1 plus LOH",
+                                 "BRCA1 Hypermethylation",
+                                 "RAD51C Hypermethylation"), 
+                      labels = c("WT BRCA1/2 TCGA", "WT BRCA1/2", 
+                                 "WT BRCA1/2+LOH", 
+                                 "somatic BRCA2", "germline BRCA2",
+                                 "somatic BRCA2+LOH", "germline BRCA2+LOH", 
+                                 "somatic BRCA1", "germline BRCA1", 
+                                 "somatic BRCA1+LOH", "germline BRCA1+LOH",
+                                 "BRCA1 Hypermethyl.",
+                                 "RAD51C Hypermethyl."))
+
+### Clean up and save table
+dtExp$Maxwell = NULL
+dtExp$MaxwellLOH = NULL
+dtExp$MaxwellGene = NULL
+
+saveRDS(dtExp, file.path(OUTRESULTS, "TCGA_Exposures_and_BRCA_Status_plusGene.rds"))
+write.table(dtExp, file.path(OUTRESULTS, "TCGA_Exposures_and_BRCA_Status_plusGene.txt"), 
+            sep = "\t", col.names = TRUE, row.names = FALSE, quote = FALSE)
+
+```
+
+## Panel B: CIN signature activity vs BRCA1/2 status
+
+
+```{r PanelA Sigs vs Mutants}
+
+## OV|BRCA only
+pACX3 = plotPanelA(dtExp, SIGNATURE = "CX3", MAXXAXIS = 1, RESCALE = TRUE, REMOVEYLABELS = TRUE) 
+pACX5 = plotPanelA(dtExp, SIGNATURE = "CX5", MAXXAXIS = 1, RESCALE = TRUE, REMOVEYLABELS = TRUE) 
+pACX2 = plotPanelA(dtExp, SIGNATURE = "CX2", MAXXAXIS = 1, RESCALE = TRUE, REMOVEYLABELS = FALSE) 
+
+pPanelA = pACX2 + pACX5 + pACX3 + plot_layout(nrow = 1)
+
+
+## Pancancer
+pACX3Pancan = plotPanelA(dtExp, SIGNATURE = "CX3", CANCERS = NULL, MAXXAXIS = 1, RESCALE = TRUE, REMOVEYLABELS = TRUE) 
+pACX5Pancan = plotPanelA(dtExp, SIGNATURE = "CX5", CANCERS = NULL, MAXXAXIS = 1, RESCALE = TRUE, REMOVEYLABELS = TRUE) 
+pACX2Pancan = plotPanelA(dtExp, SIGNATURE = "CX2", CANCERS = NULL, MAXXAXIS = 1, RESCALE = TRUE, REMOVEYLABELS = FALSE) 
+
+pPanelAPancan = pACX2Pancan + pACX5Pancan + pACX3Pancan + plot_layout(nrow = 1)
+
+
+## Test for significance
+dtTestCX2 = testSigPanelA(dtExp, RESCALE = TRUE, SIGNATURE = "CX2", BACKGROUND = "WT BRCA1/2")
+dtTestCX5 = testSigPanelA(dtExp, RESCALE = TRUE, SIGNATURE = "CX5", BACKGROUND = "WT BRCA1/2")
+dtTestCX3 = testSigPanelA(dtExp, RESCALE = TRUE, SIGNATURE = "CX3", BACKGROUND = "WT BRCA1/2")
+
+
+## Test for significance - pancan
+dtTestCX2Pancan = testSigPanelA(dtExp, RESCALE = TRUE, SIGNATURE = "CX2", CANCERS = NULL, BACKGROUND = "WT BRCA1/2")
+dtTestCX5Pancan = testSigPanelA(dtExp, RESCALE = TRUE, SIGNATURE = "CX5", CANCERS = NULL, BACKGROUND = "WT BRCA1/2")
+dtTestCX3Pancan = testSigPanelA(dtExp, RESCALE = TRUE, SIGNATURE = "CX3", CANCERS = NULL, BACKGROUND = "WT BRCA1/2")
+
+
+## Save
+cairo_pdf(file.path(OUTPLOTS, "EDF_9_A_OVBRCA_Mutants.pdf"), width = 180/25.4, height = 65/25.4)
+print(pPanelA); dev.off()
+ggsave(filename = file.path(OUTPLOTS, "EDF_9_A_OVBRCA_Mutants.svg"), pPanelA,
+       width = 180, height = 65, units = "mm")
+ggsave(filename = file.path(OUTPLOTS, "EDF_9_A_OVBRCA_Mutants.png"), pPanelA,
+       width = 180, height = 65, units = "mm")
+
+
+cairo_pdf(file.path(OUTPLOTS, "EDF_9_A_Pancan_Mutants.pdf"), width = 180/25.4, height = 65/25.45)
+print(pPanelAPancan); dev.off()
+ggsave(filename = file.path(OUTPLOTS, "EDF_9_A_Pancan_Mutants.svg"), pPanelAPancan,
+       width = 180, height = 65, units = "mm")
+ggsave(filename = file.path(OUTPLOTS, "EDF_9_A_Pancan_Mutants.png"), pPanelAPancan,
+       width = 180, height = 65, units = "mm")
+
+```
+
+
+
+```{r 2nd review - new answer, echo=FALSE}
+
+## Identify TCGA TNBC samples
+dtLehmann = fread(LEHMANTNBC)
+tnbc = dtLehmann$BARCODE[ dtLehmann$TNBC == "YES" ]
+notTnbc = dtLehmann$BARCODE[ dtLehmann$TNBC == "NO" ]
+
+
+## Scale activity pan-cancer before filtering
+dtScale = data.table(melt(scale(exp)))
+if(identical(dtScale$Var1, dtExp$Sample) & identical(dtScale$Var2, dtExp$Signature)) {
+  dtExp$Scaled = dtScale$value
+} else {
+  warning("Not identical samples and signatures.")
+}
+
+## Only look at WT BRCA1/2 and IHR sigs (CX2, CX3, CX5), and all of OV (non BRCA1/2 WT)
+dtOV = dtExp[ dtExp$Cancer == "OV" & dtExp$Signature %in% c("CX2", "CX3", "CX5"), ]
+dtOV$Signature = factor(dtOV$Signature, levels = c("CX2", "CX5", "CX3"))
+
+dtWT = dtExp[ dtExp$Status %in% c("WT BRCA1/2 TCGA", "WT BRCA1/2") & dtExp$Cancer != "OV" &
+                dtExp$Signature %in% c("CX2", "CX3", "CX5"), ]
+dtWT$Signature = factor(dtWT$Signature, levels = c("CX2", "CX5", "CX3"))
+
+## Classify patients into OV, TNBC, non-TNBC and pan-cancer (background)
+dtOV$WT = ifelse(dtOV$Status == "WT BRCA1/2", "OV (WT)", "OV (mutant BRCA1/2)")
+
+dtWT$WT = "Pan-cancer"
+dtWT$WT[ dtWT$Sample %in% tnbc ] = "TNBC"
+dtWT$WT[ dtWT$Sample %in% notTnbc ] = "non-TNBC"
+
+
+## Merge both
+dtWT = rbind(dtWT, dtOV)
+dtWT$WT = factor(dtWT$WT, levels = c("OV (mutant BRCA1/2)", "OV (WT)", "TNBC", "non-TNBC", "Pan-cancer"))
+
+
+## Plot CX2, CX3 and CX5
+pRev = ggplot(dtWT, aes(x = WT, y = Scaled)) + facet_wrap(. ~ Signature) +
+  geom_jitter(size = 0.1, width = 0.2, height = 0, alpha = 0.5) + 
+  geom_boxplot(alpha = 0.5, outlier.colour = NA, outlier.size = 0) + 
+  labs(x = "TCGA cancer samples with wild type BRCA1/2", y  = "Activity") +
+  coord_capped_cart(left = "both", bottom = "both")
+
+ggsave(filename = file.path(OUTPLOTS, "SuppFig_35_IHR_WT_OV_TNBC.svg"), pRev,
+       width = 120, height = 65, units = "mm")
+ggsave(filename = file.path(OUTPLOTS, "SuppFig_35_IHR_WT_OV_TNBC.png"), pRev,
+       width = 120, height = 65, units = "mm")
+
+
+## Test significance
+dtWT[ dtWT$Signature == "CX2", ] %>%
+  pairwise_t_test(Exposure ~ WT, p.adjust.method = "BH")
+
+dtWT[ dtWT$Signature == "CX5", ] %>%
+  pairwise_t_test(Exposure ~ WT, p.adjust.method = "BH")
+
+dtWT[ dtWT$Signature == "CX3", ] %>%
+  pairwise_t_test(Exposure ~ WT, p.adjust.method = "BH")
+
+```
+
+\newpage
+
+```{r prepare HRD scores}
+
+## Load data
+dtHRDScores = fread(HRDSCORES)
+
+## Merge data
+dtExp$HRD_TAI = dtHRDScores$HRD_TAI[ match(substr(dtExp$Sample,1,12), 
+                                           substr(dtHRDScores$patient_id,1,12)) ]
+dtExp$HRD_LST = dtHRDScores$HRD_LST[ match(substr(dtExp$Sample,1,12), 
+                                           substr(dtHRDScores$patient_id,1,12)) ]
+dtExp$HRD_LOH = dtHRDScores$HRD_LOH[ match(substr(dtExp$Sample,1,12), 
+                                           substr(dtHRDScores$patient_id,1,12)) ]
+dtExp$tp53_score = dtHRDScores$tp53_score[ match(substr(dtExp$Sample,1,12), 
+                                                 substr(dtHRDScores$patient_id,1,12)) ]
+dtExp$HRD_Score = dtHRDScores$HRD_Score[ match(substr(dtExp$Sample,1,12), 
+                                               substr(dtHRDScores$patient_id,1,12)) ]
+dtExp$PARPi7 = dtHRDScores$PARPi7[ match(substr(dtExp$Sample,1,12), 
+                                         substr(dtHRDScores$patient_id,1,12)) ]
+dtExp$PARPi7_bin = dtHRDScores$PARPi7_bin[ match(substr(dtExp$Sample,1,12), 
+                                                 substr(dtHRDScores$patient_id,1,12)) ]
+dtExp$RPS = dtHRDScores$RPS[ match(substr(dtExp$Sample,1,12), 
+                                   substr(dtHRDScores$patient_id,1,12)) ]
+dtExp$RPPA = dtHRDScores$rppa_ddr_score[ match(substr(dtExp$Sample,1,12), 
+                                               substr(dtHRDScores$patient_id,1,12)) ]
+
+```
+
+
+```{r Panel D Genomic HRD scores}
+
+## Make plots
+## Genomic scores
+## Main
+pHRDScore = plotActivityVSFeature(dtExp, SIGNATURES = c("CX2", "CX5", "CX3"), RESCALE = TRUE, 
+                                  FEATURE = "HRD_Score", PLOTNAME = "HRD Score", MAXXAXIS = 1)
+## Supplement
+pTAI = plotActivityVSFeature(dtExp, SIGNATURES = c("CX3", "CX5", "CX2"), RESCALE = TRUE, FEATURE = "HRD_TAI", PLOTNAME = "NtAI - Number of telomeric allelic imbalances", MAXXAXIS = 0.6)
+pLST = plotActivityVSFeature(dtExp, SIGNATURES = c("CX3", "CX5", "CX2"), FEATURE = "HRD_LST", PLOTNAME = "LST - Large scale transitions", MAXXAXIS = 0.6)
+pLOH = plotActivityVSFeature(dtExp, SIGNATURES = c("CX3", "CX5", "CX2"), FEATURE = "HRD_LOH", PLOTNAME = "LOH - Number of\nsegments with LOH", MAXXAXIS = 0.6)
+
+## Expression scores
+## Main
+pTP53 = plotActivityVSFeatureHex(dtExp, SIGNATURES = c("CX2", "CX5", "CX3"), RESCALE = TRUE, 
+                                 FEATURE = "tp53_score", PLOTNAME = "TP53 Inactivation Score",
+                                 BREAKS = c(10, 20, 30, 50, 1000), ADDLM = FALSE, 
+                                 BREAKLABELS = c("1-10", "10-20", "20-30", "30-50", "50+"))
+
+## Supp
+pPARP = plotActivityVSFeatureHex(dtExp, SIGNATURES = c("CX3", "CX5", "CX2"), RESCALE = TRUE, 
+                                 FEATURE = "PARPi7", PLOTNAME = "PARPi7 score (Olaparib response)",
+                                 BREAKS = c(10, 20, 30, 50, 1000), ADDLM = FALSE, 
+                                 BREAKLABELS = c("1-10", "10-20", "20-30", "30-50", "50+"))
+pRPS = plotActivityVSFeatureHex(dtExp, SIGNATURES = c("CX3", "CX5", "CX2"), RESCALE = TRUE, 
+                                 FEATURE = "RPS", PLOTNAME = "Repair Proficiency Score",
+                                 BREAKS = c(10, 20, 30, 50, 1000), ADDLM = FALSE, 
+                                 BREAKLABELS = c("1-10", "10-20", "20-30", "30-50", "50+"))
+
+
+## Protein scores
+pRPPA = plotActivityVSFeatureHex(dtExp, SIGNATURES = c("CX3", "CX5", "CX2"), RESCALE = TRUE, 
+                                 FEATURE = "RPPA", PLOTNAME = "RPPA score (DDR protein expression)",
+                                 BREAKS = c(10, 20, 30, 50, 1000), ADDLM = FALSE, 
+                                 BREAKLABELS = c("1-10", "10-20", "20-30", "30-50", "50+"))
+
+pRPPA = plotActivityVSFeature(dtExp, SIGNATURES = c("CX3", "CX5", "CX2"), FEATURE = "RPPA", PLOTNAME = "RPPA score (DDR protein expression)", MAXXAXIS = 0.6)
+
+```
+
+
+```{r Supp coeffs vs p-val plot}
+
+testCoeffsVSFeatures = function(dtExp, SIGNATURES = c("CX2", "CX5", "CX3"), RESCALE = TRUE, 
+                                FEATURES = c("HRD_TAI", "HRD_LST", "HRD_LOH", "tp53_score", 
+                                             "HRD_Score", "PARPi7", "RPS", "RPPA") ) {
+  
+  lAllSigs = lapply(SIGNATURES, function(thisSig) {
+    
+    dtSig = dtExp[ dtExp$Signature == thisSig, ]
+    if(RESCALE) {  
+      dtSig$Exposure = (dtSig$Exposure - min(dtSig$Exposure)) / 
+        (max(dtSig$Exposure) - min(dtSig$Exposure))
+    }
+    
+    lFeats = lapply(FEATURES, function(thisFeat) {
+      
+      corTest = cor.test(dtSig$Exposure, dtSig[[thisFeat]], use = "pairwise.complete.obs", 
+                     method = "spearman")
+      corCoeff = signif(corTest$estimate, 4)
+      pVal = signif(corTest$p.value, 4)
+      out = c(thisSig, thisFeat, corCoeff, pVal)
+      return(out)
+      
+    })
+      
+    dtFeats = data.table(do.call(rbind, lFeats))
+    colnames(dtFeats) = c("Sig", "Feature", "Rho", "pVal")
+    dtFeats$Rho = as.numeric(dtFeats$Rho)
+    dtFeats$pVal = as.numeric(dtFeats$pVal)
+
+    dtFeats$pAdj = p.adjust(dtFeats$pVal, method = "BH")
+    
+    return(dtFeats)
+      
+  })
+  
+  dtAllSigs = rbindlist(lAllSigs)
+  return(dtAllSigs)
+}
+
+dtSigsVFeats = testCoeffsVSFeatures(dtExp, SIGNATURES = c("CX2", "CX5", "CX3"), RESCALE = TRUE, 
+                     FEATURES = c("HRD_TAI", "HRD_LST", "HRD_LOH", "tp53_score", 
+                                  "HRD_Score", "PARPi7", "RPS", "RPPA") ) 
+
+dtSigsVFeats$Sig = factor(dtSigsVFeats$Sig, levels = c("CX2", "CX5", "CX3"))
+
+## Remove PARPi7 score. We couldn't establish what exactly the score displays and how its
+## correlation has to be interpreted.
+dtSigsVFeats = dtSigsVFeats[ dtSigsVFeats$Feature != "PARPi7", ]
+dtSigsVFeats$PlotNames = factor(dtSigsVFeats$Feature, 
+                                levels = c("HRD_Score", "HRD_LOH", "HRD_LST",
+                                           "HRD_TAI", "RPS", "tp53_score", "RPPA"),
+                                labels = c("MyriadMyChoice (HRD score)", "Loss of heterozygosity score",
+                                           "Large-scale transition score", 
+                                           "Telomeric allelic imbalances score", 
+                                           "Repair proficiency score",
+                                           "TP53 inactivation score", 
+                                           "Reverse-phase protein array score on 23 DDR genes"))
+
+## Prepare p-value for plotting
+# dtSigsVFeats$PlotSize = -log(dtSigsVFeats$pAdj)
+# Categories
+breaks = c(0, 10e-250, 10e-100, 10e-10, 0.005, 1)
+# Names of categories
+tags = c("<10e-250", "[10e-100,10e-250)", "[10e-10, 10e-100)", "[0.005, 10e-10)", ">0.005")
+# Split p-vals into somewhat meaningful categories
+dtSigsVFeats$`q-Value` = cut(dtSigsVFeats$pAdj, breaks = breaks, 
+                            include.lowest=TRUE, right=FALSE, labels = tags)
+
+pCoeff = ggplot(dtSigsVFeats, aes(x = Sig, y = Rho, group = PlotNames, colour = PlotNames)) +
+  geom_point(aes(shape = `q-Value`, size = `q-Value`)) + scale_size_manual(values = c(5:1)) +
+  scale_shape_manual(values = rev(c(1, 3, 15, 18, 16))) +
+  theme(legend.position = "bottom") +
+  labs(x = "Impaired HR signatures", y = "Correlation coefficient (Rho)",
+       colour = "HRD\ncriterion") +
+  geom_hline(yintercept = 0, colour = "black") + scale_colour_brewer(palette = "Dark2") +
+  guides(colour = guide_legend(nrow = 4, byrow = TRUE), size = guide_legend(nrow = 5,byrow = TRUE))
+
+cairo_pdf(file.path(OUTPLOTS, "EDF_9_D_Impaired_HR_CorrCoeffs.pdf"), width = 3.54, height = 5); print(pCoeff); dev.off()
+ggsave(file.path(OUTPLOTS, "EDF_9_D_Impaired_HR_CorrCoeffs.svg"), pCoeff, width = 3.54, height = 5)
+
+
+
+#### Add other sigs
+otherSigs = levels(dtExp$Signature)[ ! levels(dtExp$Signature) %in% c("CX2", "CX5", "CX3") ]
+dtSigsVFeatsOther = testCoeffsVSFeatures(dtExp, SIGNATURES = otherSigs, RESCALE = TRUE, 
+                     FEATURES = c("HRD_TAI", "HRD_LST", "HRD_LOH", "tp53_score", 
+                                  "HRD_Score", "PARPi7", "RPS", "RPPA") ) 
+
+
+dtSigsVFeatsOther$Sig = "Other signatures"
+
+## Remove PARPi7 score. We couldn't establish what exactly the score displays and how its
+## correlation has to be interpreted.
+dtSigsVFeatsOther = dtSigsVFeatsOther[ dtSigsVFeatsOther$Feature != "PARPi7", ]
+dtSigsVFeatsOther$PlotNames = factor(dtSigsVFeatsOther$Feature, 
+                                levels = c("HRD_Score", "HRD_LOH", "HRD_LST",
+                                           "HRD_TAI", "RPS", "tp53_score", "RPPA"),
+                                labels = c("MyriadMyChoice (HRD score)", "Loss of heterozygosity score",
+                                           "Large-scale transition score", 
+                                           "Telomeric allelic imbalances score", 
+                                           "Repair proficiency score",
+                                           "TP53 inactivation score", 
+                                           "Reverse-phase protein array score on 23 DDR genes"))
+
+## Prepare p-value for plotting
+# dtSigsVFeats$PlotSize = -log(dtSigsVFeats$pAdj)
+# Categories
+breaks = c(0, 10e-250, 10e-100, 10e-10, 0.005, 1)
+# Names of categories
+tags = c("<10e-250", "[10e-100,10e-250)", "[10e-10, 10e-100)", "[0.005, 10e-10)", ">0.005")
+# Split p-vals into somewhat meaningful categories
+dtSigsVFeatsOther$`q-Value` = cut(dtSigsVFeatsOther$pAdj, breaks = breaks, 
+                            include.lowest=TRUE, right=FALSE, labels = tags)
+
+pCoeffOther = ggplot(dtSigsVFeatsOther, aes(x = Sig, y = Rho, group = PlotNames, fill = PlotNames)) +
+  geom_boxplot() + theme(legend.position = "none") +
+  labs(x = "Impaired HR signatures", y = "Correlation coefficient (Rho)") +
+  geom_hline(yintercept = 0, colour = "black") + scale_fill_brewer(palette = "Dark2") +
+  scale_y_continuous(breaks = seq(from = -0.75, to = 0.75, by = 0.25)) 
+  coord_capped_cart(ylim = c(0.8, -0.2))
+
+# pCoeffOther + (pCoeff/ guide_area()) + plot_layout(guides = 'collect')
+
+cairo_pdf(file.path(OUTPLOTS, "EDF_9_D_Impaired_HR_CorrCoeffs_Other_sigs.pdf"), width = 3/2.54, height = 5); print(pCoeffOther); dev.off()
+ggsave(file.path(OUTPLOTS, "EDF_9_D_Impaired_HR_CorrCoeffs_Other_sigs.svg"), pCoeffOther, width = 3/2.54, height = 5)
+
+```
+
+\newpage
+
+## Session info
+
+```{r session,echo=FALSE}
+
+sessionInfo()
+
+```

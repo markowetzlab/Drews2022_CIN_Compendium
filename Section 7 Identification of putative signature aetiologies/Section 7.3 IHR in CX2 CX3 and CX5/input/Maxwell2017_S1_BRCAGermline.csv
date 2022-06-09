@@ -1,0 +1,161 @@
+Tumor ID	Group	Mutation	Gender	Tumor Site	Sequenced cancer type	Histological Type	Hormone Re ceptor Status	Stage	Grade	Age at Diagnosis	Prior Chemo-therapyes	Type or Reason for Prior chemotherapy
+3068-Brca1Br9	Penn	BRCA1 c.68_69del:p.E23fs	FEMALE	Breast	2nd primary	Invasive Ductal Carcinoma	TNBC	IA	2	55	yes	Unknown adjuvant therapy for prior ovarian cancer
+3132-Brca1Br16	Penn	BRCA1 c.5074+1G>T	FEMALE	Breast	Primary	Unknown	ER+Her2-	IA	3	40	no	n/a
+3224-Brca2Ov13	Penn	BRCA2 c.3167_3170del:p.Q1056fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	Unk	3	53	no	n/a
+3646-Brca1Br41	Penn	BRCA1 c.T5066G:p.M1689R	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIA	3	31	no	n/a
+3943-Brca1Br11	Penn	BRCA1 c.68_69del:p.E23fs	FEMALE	Breast	2nd primary	Invasive Ductal Carcinoma	TNBC	IA	3	39	yes	Adjuvant carboplatin/paclitaxel for prior ovarian cancer
+3994-Brca1Br17	Penn	BRCA1 c.T2934G:p.Y978X	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIA	3	36	no	n/a
+4274-Brca1Br54	Penn	BRCA1 c.68_69del:p.E23fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIA	3	35	no	n/a
+4452-Brca2Br36	Penn	BRCA2:c.8904delC:p.V2969fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2+	IA	unknown	39	no	n/a
+4528-Brca1Br8	Penn	BRCA1 c.C4183T:p.Q1395X	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IA	3	33	no	n/a
+4651-Brca1Ov20	Penn	BRCA1 c.68_69del:p.E23fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	61	no	n/a
+4713-Brca1Br95	Penn	BRCA1 c.68_69del:p.E23fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IA	3	38	no	n/a
+4756-Brca2Br1	Penn	BRCA2 c.5946delT:p.S1982fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIB	3	70	no	n/a
+4886-Brca2Br21	Penn	BRCA2 c.8487+1G>A	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIA	3	39	no	n/a
+4890-Brca1Ov9	Penn	BRCA1 c.3671_3672insTTCC:p.P1224fs	FEMALE	Ovary	2nd primary	Papillary Serous Carcinoma	n/a	IIC	3	53	yes	Unknown adjuvant therapy for prior breast cancer
+4933-Brca1Br118	Penn	BRCA1 c.C5123A:p.A1708E	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIB	3	42	no	n/a
+4972-Brca2Br45	Penn	BRCA2 c.G3922T:p.E1308X	FEMALE	Breast	Primary	Invasive Mixed	ER+Her2-	IIB	2	43	no	n/a
+4979-Brca1Br115	Penn	BRCA1 c.5266dupC:p.Q1756fs	FEMALE	Breast	2nd primary	Invasive Ductal Carcinoma	TNBC	IA	3	58	yes	Adjuvant doxorucibin/cyclophosphamide for prior breast cancer
+5093-Brca1Ov13	Penn	BRCA1 c.4035delA:p.E1345fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IV	3	53	no	n/a
+5177-Brca2Br3	Penn	BRCA2:c.1054dupT:p.Y352fs	FEMALE	Breast	2nd Primary	Invasive Ductal Carcinoma	ER+Her2-	IA	2	50	yes	Adjvuant 5-FU/oxaliplatin/leucovorin for prior colon cancer
+5294-Brca1Br116	Penn	BRCA1 c.68_69del:p.E23fs	FEMALE	Breast	Primary	Other Carcinoma	TNBC	IA	3	34	no	n/a
+5341-Brca2Br8	Penn	BRCA2 c.6758_6759del:p.L2253fs	FEMALE	Breast	Primary	Unknown	ER+Her2-	IIA/IIIC	2	37	no	n/a
+5380-Brca1Br28	Penn	BRCA1 c.C4327T:p.R1443X	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIA	3	47	no	n/a
+5454-Brca1Br57	Penn	BRCA1 c.5266dupC:p.Q1756fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIA	3	58	no	n/a
+5479-Brca1Br30	Penn	BRCA1 c.68_69del:p.E23fs	FEMALE	Breast	2nd primary	Invasive Ductal Carcinoma	TNBC	IIA	3	52	yes	Adjuvant doxorucibin/cyclophosphamide/paclitaxel for prior breast cancer
+5548-Brca1Ov4	Penn	BRCA1 del exon 14	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIB	2	55	no	n/a
+5558-Brca2Br17	Penn	BRCA2 c.C5645A:p.S1882X	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2+	IIB	unknown	40	no	n/a
+5565-Brca2Br7	Penn	BRCA2 c.271_272del:p.Y91fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IA	2	33	no	n/a
+5638-Brca1Br61	Penn	BRCA1 c.68_69del:p.E23fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIA	3	41	no	n/a
+5641-Brca1Ov12	Penn	BRCA1 c.68_69del:p.E23fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	59	no	n/a
+5652-Brca2Br20	Penn	BRCA2 c.6462_6463del:p.Y2154fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IIA	3	57	no	n/a
+5666-Brca1Ov10	Penn	BRCA1 c.3155delA:p.N1052fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	40	no	n/a
+5695-Brca1Ov14	Penn	BRCA1 c.3155delA:p.N1052fs	FEMALE	Ovary	Primary	Carcinosarcoma	n/a	IIIC	3	40	no	n/a
+5696-Brca1Br32	Penn	BRCA1 c.G5074C:p.D1692H	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER-Her2+	IA	3	57	no	n/a
+5717-Brca1Br14	Penn	BRCA1 exon 14-20 del 26kb	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IV	3	39	no	n/a
+5722-Brca2Ov4	Penn	BRCA2 c.5946delT:p.S1982fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	54	no	n/a
+5744-Brca1Br92	Penn	BRCA1 del exon 8	FEMALE	Breast	Primary	Other Carcinoma	TNBC	IIA	3	52	no	n/a
+5749-Brca1Ov66	Penn	BRCA1 c.G4069T:p.E1357X	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	III	unknown	45	no	n/a
+5754-Brca2Ov10	Penn	BRCA2 c.1806dupA:p.G602fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	63	no	n/a
+5784-Brca1Ov7	Penn	BRCA1 c.68_69del:p.E23fs	FEMALE	Ovary	Primary	Carcinosarcoma	n/a	IIIB	3	57	no	n/a
+5791-Brca2Br4	Penn	BRCA2:c.C5682A:p.Tyr1894X	FEMALE	Breast	2nd Primary	Invasive Ductal Carcinoma	ER+Her2-	IA	2	55	yes	Carboplatin/taxol for prior ovarian cancer
+5791-Brca2Ov1	Penn	BRCA2 c.C5682G:p.Y1894X	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IV	3	51	no	n/a
+5855-Brca1Br10	Penn	BRCA1 c.C4222T:p.Q1408X	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2+	IA	3	36	no	n/a
+5960-Brca2Br11	Penn	BRCA2 c.C4965G:p.Y1655X	MALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IIB	2	46	no	n/a
+5963-Brca1Ov11	Penn	BRCA1 c.4158_4162del:p.S1386fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIC	3	50	no	n/a
+6002-Brca1Br91	Penn	BRCA1 c.T181G:p.C61G	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IA	3	30	no	n/a
+6013-Brca2Br49	Penn	BRCA2 c.5946delT:p.S1982fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IIA	1	62	no	n/a
+6035-Brca2Br10	Penn	BRCA2 c.5946delT:p.S1982fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IC	3	43	no	n/a
+6065-Brca1Br89	Penn	BRCA1 c.3756_3759delGTCT:p.S1253fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IIA	3	40	no	n/a
+6066-Brca2Br9	Penn	BRCA2 c.G8364A:p.W2788X	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IIB	2	35	no	n/a
+6113-Brca2Ov5	Penn	BRCA2 c.5946delT:p.S1982fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IB	3	52	no	n/a
+6140-Brca1Ov44	Penn	BRCA1 c.5266dupC:p.Q1756fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	57	no	n/a
+6233-Brca1Ov50	Penn	BRCA1 c.5266dupC:p.Q1756fs	FEMALE	Ovary	2nd primary	Papillary Serous Carcinoma	n/a	II	3	64	yes	Unknown adjuvant therapy for prior breast cancer
+6331-Brca1Br109	Penn	BRCA1 exon 13 ins 6kb	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IA	3	54	no	n/a
+6372-Brca2Ov7	Penn	BRCA2 c.8954-1G>-	FEMALE	Ovary	Primary	Serous/Endometroid Carcinoma	n/a	IIIC	3	70	no	n/a
+6489-Brca1Ov42	Penn	BRCA1 c.5266dupC:p.Q1756fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IV	3	52	no	n/a
+653-Brca2Br32	Penn	BRCA2 c.8636dupA:p.N2879fs	FEMALE	Breast	Primary	Invasive Lobular Carcinoma	ER+Her2-	IIIA	unknown	52	no	n/a
+6545-Brca1Ov23	Penn	BRCA1 c.5074+1G>A	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	54	no	n/a
+6569-Brca2Br40	Penn	BRCA2 c.C5645A:p.S1882X	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IA	3	49	no	n/a
+704-Brca1Br66	Penn	BRCA1 c.2197_2201delGAGAA:p.E733fs	FEMALE	Breast	2nd Primary	Invasive Ductal Carcinoma	ER-	IA	unknown	46	yes	Unknown adjuvant therapy for prior ovarian cancer
+7318-Brca1Ov22	Penn	BRCA1 c.68_69del:p.E23fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	57	no	n/a
+TCGA-04-1336	TCGA	BRCA2 c.5211_5214del:p.D1737fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIB	3	55	no	n/a
+TCGA-04-1367	TCGA	BRCA2 c.G880T:p.E294X	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	50	no	n/a
+TCGA-09-2045	TCGA	BRCA1 c.5335delC:p.Q1779fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IV	2	50	no	n/a
+TCGA-09-2051	TCGA	BRCA1 c.5265dupC:p.Q1756fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	42	no	n/a
+TCGA-10-0931	TCGA	BRCA1 c.68_69del:p.E23fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	44	no	n/a
+TCGA-13-0726	TCGA	BRCA2 c.A7180T:p.R2394X	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	unknown	55	no	n/a
+TCGA-13-0751	TCGA	BRCA2 c.4562_4563del:p.L1521fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	unknown	44	no	n/a
+TCGA-13-0883	TCGA	BRCA1 c.5265dupC:p.Q1756fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	61	no	n/a
+TCGA-13-0887	TCGA	BRCA1 c.68_69del:p.E23fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	42	no	n/a
+TCGA-13-0893	TCGA	BRCA1 c.1507_1508insATAAATTAAA:p.K503fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	48	no	n/a
+TCGA-13-0894	TCGA	BRCA1 c.C3403T:p.Q1135X	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	53	no	n/a
+TCGA-13-0903	TCGA	BRCA1 c.1510delC:p.R504fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IV	3	42	no	n/a
+TCGA-13-0913	TCGA	BRCA2 c.5569_5573del:p.E1857fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	53	no	n/a
+TCGA-13-1404	TCGA	BRCA1 c.G1115A:p.W372X	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	48	no	n/a
+TCGA-13-1488	TCGA	BRCA1 c.C2138G:p.S713X	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IV	3	59	no	n/a
+TCGA-13-1498	TCGA	BRCA2 c.5946delT:p.S1982fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	73	no	n/a
+TCGA-13-1499	TCGA	BRCA2 c.5946delT:p.S1982fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	56	no	n/a
+TCGA-13-1512	TCGA	BRCA1 c.2475delC:p.D825fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	49	no	n/a
+TCGA-20-1685	TCGA	BRCA2 c.5946delT:p.S1982fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	45	no	n/a
+TCGA-20-1687	TCGA	BRCA1 c.3756delAGAC:p.S1253fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IV	3	46	no	n/a
+TCGA-23-1021	TCGA	BRCA2 c.A6037T:p.K2013X	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IV	3	45	no	n/a
+TCGA-23-1027	TCGA	BRCA1 c.68_69del:p.E23fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	48	no	n/a
+TCGA-23-1029	TCGA	BRCA2 c.5946delT:p.S1982fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	46	no	n/a
+TCGA-23-1114	TCGA	BRCA2 c.5946delT:p.S1982fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	55	no	n/a
+TCGA-23-1118	TCGA	BRCA1 c.68_69del:p.E23fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	45	no	n/a
+TCGA-23-1122	TCGA	BRCA1 c.5265dupC:p.Q1756fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	53	no	n/a
+TCGA-23-2077	TCGA	BRCA1 c.5265dupC:p.Q1756fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	45	no	n/a
+TCGA-23-2078	TCGA	BRCA1 c.68_69del:p.E23fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	66	no	n/a
+TCGA-23-2079	TCGA	BRCA1 c.68_69del:p.E23fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	46	no	n/a
+TCGA-23-2081	TCGA	BRCA1 c.5265dupC:p.Q1756fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IV	3	49	no	n/a
+TCGA-23-2084	TCGA	BRCA2 c.5946delT:p.S1982fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IV	3	45	no	n/a
+TCGA-24-0975	TCGA	BRCA2 c.631+2T>G	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	58	no	n/a
+TCGA-24-1103	TCGA	BRCA1 c.T190G:p.C64G	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	50	no	n/a
+TCGA-24-1417	TCGA	BRCA2 c.5112_5115del:p.R1704fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IV	3	54	no	n/a
+TCGA-24-1463	TCGA	BRCA2 c.1806dupA:p.G602fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	70	no	n/a
+TCGA-24-1470	TCGA	BRCA1 c.5030_5033del:p.T1677fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIB	3	54	no	n/a
+TCGA-24-1849	TCGA	BRCA2 c.C4889G:p.S1630X	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	80	no	n/a
+TCGA-24-2024	TCGA	BRCA2 c.5128_5131del:p.Y1710fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	72	no	n/a
+TCGA-24-2267	TCGA	BRCA1 c.C5095T:p.R1699W	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIB	3	58	no	n/a
+TCGA-24-2280	TCGA	BRCA2 c.5946delT:p.S1982fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	74	no	n/a
+TCGA-24-2288	TCGA	BRCA2 c.657_658del:p.T219fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	70	no	n/a
+TCGA-24-2293	TCGA	BRCA2 c.C7558T:p.R2520X	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	UNK	3	47	no	n/a
+TCGA-24-2298	TCGA	BRCA1 c.4182_4183insTC:p.Q1395fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	55	no	n/a
+TCGA-25-1314	TCGA	BRCA2 c.5211_5214del:p.D1737fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IV	3	42	no	n/a
+TCGA-25-2392	TCGA	BRCA1 c.4035delA:p.E1345fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IV	3	75	no	n/a
+TCGA-25-2401	TCGA	BRCA1 c.5265dupC:p.Q1756fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	64	no	n/a
+TCGA-25-2404	TCGA	BRCA2 c.1025delA:p.E342fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	38	no	n/a
+TCGA-29-1688	TCGA	BRCA1 c.3756delAGAC:p.S1253fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	2	39	no	n/a
+TCGA-29-1691	TCGA	BRCA1 c.G5363T:p.G1788V	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	2	51	no	n/a
+TCGA-29-1696	TCGA	BRCA1 c.514delC:p.Q172fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	2	43	no	n/a
+TCGA-29-1764	TCGA	BRCA2 c.3846_3847del:p.T1282fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	2	49	no	n/a
+TCGA-29-1770	TCGA	BRCA1 c.2457delC:p.S819fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	2	54	no	n/a
+TCGA-29-1775	TCGA	BRCA1 c.68_69del:p.E23fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	2	51	no	n/a
+TCGA-29-1781	TCGA	BRCA1 c.2475delC:p.D825fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	69	no	n/a
+TCGA-29-1784	TCGA	BRCA2 c.6402_6406del:p.N2134fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	55	no	n/a
+TCGA-42-2582	TCGA	BRCA1 c.1213delA:p.S405fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	49	no	n/a
+TCGA-42-2589	TCGA	BRCA1 c.4065_4068del:p.N1355fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	54	no	n/a
+TCGA-59-2348	TCGA	BRCA1 c.G2389T:p.E797X	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	59	no	n/a
+TCGA-59-2351	TCGA	BRCA2 c.5946delT:p.S1982fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	51	no	n/a
+TCGA-59-A5PD	TCGA	BRCA2 c.3604delA:p.K1202fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IC	3	55	no	n/a
+TCGA-61-2008	TCGA	BRCA1 c.G5445A:p.W1815X	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIC	2	40	no	n/a
+TCGA-61-2109	TCGA	BRCA1 c.1961delA:p.K654fs	FEMALE	Ovary	Primary	Papillary Serous Carcinoma	n/a	IIIC	3	40	no	n/a
+TCGA-61-2610	TCGA	BRCA1 c.2214_2215insCT:p.K739fs	Unknown	Ovary	Primary	Papillary Serous Carcinoma	n/a	unk	unknown	nd	no	n/a
+TCGA-A1-A0SH	TCGA	BRCA1 c.T181G:p.C61G	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIA	unknown	39	no	n/a
+TCGA-A2-A0D2	TCGA	BRCA1 c.5137delG:p.V1713X	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIA	unknown	45	no	n/a
+TCGA-A2-A0T0	TCGA	BRCA2 c.6942_6945del:p.T2314fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIB	unknown	59	no	n/a
+TCGA-A2-A25E	TCGA	BRCA2 c.C9294G:p.Y3098X	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+	IIIA	unknown	34	no	n/a
+TCGA-A7-A4SE	TCGA	BRCA1 c.G1054T:p.E352X	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIA	unknown	54	no	n/a
+TCGA-A8-A097	TCGA	BRCA2 c.657_658del:p.T219fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2+	IIB	unknown	65	no	n/a
+TCGA-A8-A09A	TCGA	BRCA2 c.G5857T:p.E1953X	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	X	unknown	40	no	n/a
+TCGA-A8-A09W	TCGA	BRCA2 c.G4552T:p.E1518X	FEMALE	Breast	Primary	Invasive Lobular Carcinoma	ER+Her2-	IIIB	unknown	70	no	n/a
+TCGA-AC-A3BB	TCGA	BRCA2 c.657_658del:p.T219fs	FEMALE	Breast	Primary	Invasive Lobular Carcinoma	ER+Her2-	IIIA	unknown	46	no	n/a
+TCGA-AN-A0AL	TCGA	BRCA1 c.5265dupC:p.Q1756fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIIB	unknown	41	no	n/a
+TCGA-AN-A0FL	TCGA	BRCA1 c.4035delA:p.E1345fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER-Her2+	IIA	unknown	62	no	n/a
+TCGA-AN-A0FX	TCGA	BRCA1 c.C3967T:p.Q1323X	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER-Her2+	IIA	unknown	52	no	n/a
+TCGA-AO-A03V	TCGA	BRCA2 c.5946delT:p.S1982fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	I	unknown	41	no	n/a
+TCGA-AO-A124	TCGA	BRCA1 c.68_69del:p.E23fs	FEMALE	Breast	Primary	Other Carcinoma	TNBC	IIA	unknown	38	no	n/a
+TCGA-AR-A1AM	TCGA	BRCA1 c.4065_4068del:p.N1355fs	FEMALE	Breast	Primary	Invasive Lobular Carcinoma	ER+Her2-	IIIA	unknown	52	no	n/a
+TCGA-AR-A24Q	TCGA	BRCA1 c.923delG:p.S308fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IIB	unknown	49	no	n/a
+TCGA-AR-A2LN	TCGA	BRCA2 c.8533_8534del:p.R2845fs	FEMALE	Breast	Primary	Invasive Lobular Carcinoma	ER+Her2-	IIA	unknown	65	no	n/a
+TCGA-B6-A0RG	TCGA	BRCA2 c.5345_5346del:p.Q1782fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER-	IIB	unknown	26	no	n/a
+TCGA-BH-A0AZ	TCGA	BRCA2 c.C5864A:p.S1955X	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IIIA	unknown	59	no	n/a
+TCGA-BH-A0B4	TCGA	BRCA2 c.8203dupC:p.P2735fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IIIA	unknown	47	no	n/a
+TCGA-BH-A0BZ	TCGA	BRCA2 c.9089insA:p.T3030fs	MALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2+	IIIA	unknown	65	no	n/a
+TCGA-BH-A1FN	TCGA	BRCA2 c.2806_2809del:p.K936fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+	IIA	unknown	34	no	n/a
+TCGA-C8-A12K	TCGA	BRCA1 c.C5095T:p.R1699W	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	Unknown	IIB	unknown	80	no	n/a
+TCGA-D8-A147	TCGA	BRCA1 c.T181G:p.C61G	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	X	unknown	45	no	n/a
+TCGA-D8-A1JD	TCGA	BRCA2 c.6847delC:p.P2283fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IIB	unknown	41	no	n/a
+TCGA-E2-A14N	TCGA	BRCA1 c.328dupA:p.K110fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIB	unknown	37	no	n/a
+TCGA-E2-A14Z	TCGA	BRCA1 c.594-2A>C	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	I	unknown	64	no	n/a
+TCGA-E2-A15S	TCGA	BRCA2 c.1262delA:p.Q421fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IIB	unknown	34	no	n/a
+TCGA-E9-A1NE	TCGA	BRCA2 c.3975_3976insTGCT:p.T1325fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2-	IIB	unknown	28	no	n/a
+TCGA-E9-A22E	TCGA	BRCA1 c.5265dupC:p.Q1756fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2+	IIIA	unknown	56	no	n/a
+TCGA-E9-A22G	TCGA	BRCA1 c.5265dupC:p.Q1756fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	ER-Her2+	IIA	unknown	47	no	n/a
+TCGA-E9-A244	TCGA	BRCA1 c.4035delA:p.E1345fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	Unknown	IIA	unknown	54	no	n/a
+TCGA-E9-A3QA	TCGA	BRCA1 c.5265dupC:p.Q1756fs	FEMALE	Breast	Primary	Other Carcinoma	Unknown	IIA	unknown	33	no	n/a
+TCGA-EW-A1P4	TCGA	BRCA1 c.1881_1884del:p.V627fs	FEMALE	Breast	Primary	Other Carcinoma	TNBC	IIA	unknown	43	no	n/a
+TCGA-EW-A1P7	TCGA	BRCA2 c.6482_6485del:p.D2161fs	FEMALE	Breast	Primary	Invasive Ductal Carcinoma	TNBC	IIA	unknown	59	no	n/a
+TCGA-EW-A1PD	TCGA	BRCA2 c.767_771del:p.T256fs	MALE	Breast	Primary	Invasive Ductal Carcinoma	ER+Her2+	IIA	unknown	61	no	n/a
+TCGA-HN-A2NL	TCGA	BRCA2 c.6642delT:p.T2214fs	FEMALE	Breast	Primary	Invasive Lobular Carcinoma	TNBC	IIA	unknown	56	no	n/a
