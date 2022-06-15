@@ -41,7 +41,7 @@ The code in this repository largely mirrors the structure of the methods section
 | 4   | Assessing feature encoding performance| Simulating CIN | [markowetzlab/CINGenomeSimulation](https://github.com/markowetzlab/CINSignatureGenomeSimulation) |              |
 | 5   | Robustness analysis                   | Activities & Definitions | This repo |
 | 5.1 | Signature activity stability assessment via simulation | .  | This repo |
-| 5.2 | Signature stability across genomic technologies | .         | This repo and https://github.com/markowetzlab/CINSignatureSWGSBinsize |
+| 5.2 | Signature stability across genomic technologies | .         | This repo and [markowetzlab/CINSignatureSWGSBinsize] (https://github.com/markowetzlab/CINSignatureSWGSBinsize) |
 | 5.3 | Signature definition stability assessment via introducing noise | . | This repo |
 | 6   | Enabling signature interpretation     | Shrinkage  | [macintyrelab/CINSignatureInterpretationAnalyses](https://github.com/macintyrelab/CINSignatureInterpretationAnalysis)|
 | 6.1 | Feature shrinkage is a general property of NMF | .| [macintyrelab/CINSignatureInterpretationAnalyses](https://github.com/macintyrelab/CINSignatureInterpretationAnalysis)|
@@ -53,7 +53,7 @@ The code in this repository largely mirrors the structure of the methods section
 | 7.3 | IHR in CX2, CX3 and CX5                        | . | This repo  |
 | 7.4 | Estimating the number of CNAs produced by a signature| . | This repo |
 | 8   | Signatures for drug response prediction and target identification | .| [macintyrelab/CINSignatureBiomarkerAnalysis](https://github.com/macintyrelab/CINSignatureBiomarkerAnalysis)|
-| 8.1 | Calculating signature activities for cell lines     | .| https://github.com/markowetzlab/CINSignatureCellLines |
+| 8.1 | Calculating signature activities for cell lines     | .| [markowetzlab/CINSignatureCellLines] (https://github.com/markowetzlab/CINSignatureCellLines)|
 | 9   | Building a clin. classifier bases on sig. activities| .| This repo |
 | 10  | Supplementary figures                               | .| This repo |
 | 11  | Miscellaneous (analyses without figures)            | .| This repo |
