@@ -1,10 +1,9 @@
 Please see the following two repositories for the fully commented code on how to obtain and use the Signature Interpretation matrix:
 
 Signature Interpretation:
-https://gitfront.io/r/user-9032396/f15d158bde0207038f56db19b7fa94b7d744e2e9/SignatureInterpretation/
-
+https://github.com/macintyrelab/CINSignatureInterpretationMatrix
 
 Signature Interpretation Analysis:
-https://gitfront.io/r/user-9032396/eaabf36bce34baa043d6ef5b4695bb491e791cb4/SignatureInterpretation-analyses/
+https://github.com/macintyrelab/CINSignatureInterpretationAnalysis
 
 Both are maintained by the Macintyre lab (https://github.com/macintyrelab).
