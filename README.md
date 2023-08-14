@@ -82,7 +82,7 @@ The directories above outline where to find the code associated with each Method
 | Extended    | 9              | .              | This repository, directory Section 7 -> Section 7.4 |
 | Extended    | 10             | .              | This repository, directory Section 9     |
 | Supplement  | 1-32           | .              | This repository, directory Section 10    |
-| Supplement  | 33-34          | .              | This repository, directory Section 5 -> Section 5.3 |
+| Supplement  | 33-34          | .              | This repository, directory Section 7 -> Section 7.3 |
 | Supplement  | 40             | No code needed | NA  |
 | Supplement  | 41             | .              | This repository, directory Section 10    |
 | Supplement  | 42             | .              | This repository, directory Section 5.3 -> Noisy signatures |
